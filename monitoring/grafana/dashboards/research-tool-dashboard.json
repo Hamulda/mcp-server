@@ -1,0 +1,106 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Research Tool Monitoring",
+    "tags": ["research", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Calls per Hour",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(research_api_calls_total[1h])",
+            "legendFormat": "API Calls/hour"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Calls/hour"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Daily Costs",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "research_daily_cost_usd",
+            "legendFormat": "Cost USD"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Token Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "research_tokens_used_total",
+            "legendFormat": "Tokens Used"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(research_errors_total[5m])",
+            "legendFormat": "Errors/minute"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 5,
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "research_response_time_seconds",
+            "legendFormat": "Response Time (s)"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}
+

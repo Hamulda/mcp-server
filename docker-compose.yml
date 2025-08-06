@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  research-tool:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_PATH=/app/data/research.db
+      - ENABLE_COST_TRACKING=true
+      - DAILY_COST_LIMIT=50.0
+      - LOCAL_MODE=true
+      - AGGRESSIVE_CACHING=true
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./cache:/app/cache
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+volumes:
+  research-data:
