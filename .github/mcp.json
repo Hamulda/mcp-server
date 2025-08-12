@@ -1,0 +1,44 @@
+{
+  "$schema": "https://raw.githubusercontent.com/github/copilot-tool-schemas/main/schemas/mcp.schema.json",
+  "name": "Můj_AI_Super_Tým",
+  "version": "1.0.0",
+  "publisher": "MojeJmeno",
+  "description": "Systém vedený manažerským agentem, který má k dispozici tým specialistů a sadu vlastních nástrojů.",
+  "base_url": "http://localhost:8001",
+  "tools": {
+    "delegate_task": {
+      "path": "/delegate_task",
+      "method": "POST",
+      "description": "HLAVNÍ NÁSTROJ pro delegování komplexní práce. Použij 'innovator' pro brainstorming, 'architect' pro plánování, 'coder_backend' pro Python, 'coder_frontend' pro web, 'db_specialist' pro SQL a 'qa_tester' pro kontrolu.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string",
+            "description": "Specialista, který má úkol provést: 'innovator', 'architect', 'coder_backend', 'coder_frontend', 'db_specialist', 'qa_tester'.",
+            "enum": ["innovator", "architect", "coder_backend", "coder_frontend", "db_specialist", "qa_tester"]
+          },
+          "task_description": { "type": "string", "description": "Detailní popis úkolu pro specialistu. Pro 'qa_tester' to je cesta k souboru." }
+        }, "required": ["agent_name", "task_description"]
+      }
+    },
+    "run_in_terminal": {
+      "path": "/run_in_terminal",
+      "method": "POST",
+      "description": "Spustí bezpečný příkaz v sandboxu. Použij pro instalaci závislostí ('pip install ...'), spouštění testů ('pytest') nebo běh skriptů ('python ...').",
+      "parameters": { "type": "object", "properties": { "query": { "type": "string", "description": "Příkaz ke spuštění." } }, "required": ["query"] }
+    },
+    "read_file": {
+      "path": "/read_file",
+      "method": "POST",
+      "description": "Nástroj pro získání kontextu. Přečte obsah souboru v projektu, abys pochopil existující kód před jeho úpravou.",
+      "parameters": { "type": "object", "properties": { "query": { "type": "string", "description": "Relativní cesta k souboru." } }, "required": ["query"] }
+    },
+    "write_file": {
+      "path": "/write_file",
+      "method": "POST",
+      "description": "Nástroj pro ukládání výsledků. Zapíše text do souboru. Použij k uložení kódu od kodérů, plánu od architekta nebo jiných artefaktů.",
+      "parameters": { "type": "object", "properties": { "path": { "type": "string", "description": "Relativní cesta k souboru." }, "content": { "type": "string", "description": "Obsah k zapsání." } }, "required": ["path", "content"] }
+    }
+  }
+}
