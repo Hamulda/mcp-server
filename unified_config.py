@@ -83,6 +83,14 @@ class CacheConfig:
     cache_dir: Optional[Path] = None
 
 @dataclass
+class CostConfig:
+    """Cost tracking configuration"""
+    enabled: bool = True
+    daily_limit: float = 2.0
+    monthly_target: float = 50.0
+    token_price_per_1k: float = 0.00025
+
+@dataclass
 class LoggingConfig:
     """Logging konfigurace"""
     level: str = "INFO"
@@ -117,6 +125,7 @@ class UnifiedConfig:
         self.logging = self._init_logging_config()
         self.api = self._init_api_config()
         self.sources = self._init_sources_config()
+        self.cost = self._init_cost_config()
         
         # Create directories
         self._ensure_directories()
@@ -189,6 +198,15 @@ class UnifiedConfig:
             cors_enabled=os.getenv('CORS_ENABLED', 'true').lower() == 'true',
             rate_limit_enabled=self.environment == Environment.PRODUCTION,
             rate_limit_per_minute=int(os.getenv('RATE_LIMIT_PER_MINUTE', '100'))
+        )
+    
+    def _init_cost_config(self) -> CostConfig:
+        """Inicializace cost konfigurace"""
+        return CostConfig(
+            enabled=os.getenv('COST_ENABLED', 'true').lower() == 'true',
+            daily_limit=float(os.getenv('DAILY_COST_LIMIT', '2.0')),
+            monthly_target=float(os.getenv('MONTHLY_COST_TARGET', '50.0')),
+            token_price_per_1k=float(os.getenv('TOKEN_PRICE_PER_1K', '0.00025'))
         )
     
     def _init_sources_config(self) -> Dict[str, SourceConfig]:
@@ -410,7 +428,7 @@ def validate_config_on_startup():
 __all__ = [
     'Environment',
     'DatabaseConfig', 'ScrapingConfig', 'SourceConfig', 'AIConfig', 
-    'CacheConfig', 'LoggingConfig', 'APIConfig',
+    'CacheConfig', 'CostConfig', 'LoggingConfig', 'APIConfig',
     'UnifiedConfig', 'get_config', 'create_config', 'reset_config',
     'load_env_file', 'validate_config_on_startup'
 ]

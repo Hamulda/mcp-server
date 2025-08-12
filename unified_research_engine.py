@@ -378,8 +378,13 @@ class UnifiedResearchEngine:
 
     def _calculate_actual_cost(self, tokens: int) -> float:
         """Vypočítá skutečné náklady"""
-        # Gemini pricing: $0.00025 per 1K tokens
-        return (tokens / 1000) * 0.00025
+        # Využij konfiguraci pokud je dostupná
+        if UNIFIED_CONFIG_AVAILABLE:
+            cfg = get_config()
+            price = getattr(cfg.cost, 'token_price_per_1k', 0.00025)
+        else:
+            price = 0.00025
+        return (tokens / 1000) * price
 
     def _generate_summary(self, results) -> str:
         """Generuje souhrn výsledků"""

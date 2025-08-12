@@ -97,7 +97,9 @@ class EnhancedRateLimiter:
         consecutive_429s = self._consecutive_429s.get(source, 0)
         if consecutive_429s > 0:
             backoff_multiplier = 2 ** min(consecutive_429s, 5)  # Max 32x delay
-            base_delay *= backoff_multiplier
+            # Přidej jitter pro rozptyl synchronizace
+            jitter = random.uniform(0.5, 1.5)
+            base_delay *= backoff_multiplier * jitter
             self.logger.warning(f"Exponential backoff for {source}: {base_delay:.2f}s (attempt {consecutive_429s + 1})")
 
         time_since_last = current_time - last_time

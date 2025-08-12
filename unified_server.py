@@ -14,6 +14,7 @@ import prometheus_client
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from fastapi import Response
 from cache_manager import CacheManager
+from typing import Optional
 
 # Import unified components
 try:
@@ -47,6 +48,15 @@ class ScrapeResponse(BaseModel):
     successful_sources: int
     execution_time: float
 
+class ResearchRequestModel(BaseModel):
+    query: str = Field(..., min_length=1, max_length=500)
+    strategy: str = Field(default="balanced")
+    domain: str = Field(default="general")
+    sources: Optional[List[str]] = None
+    max_results: int = 10
+    user_id: str = "default"
+    budget_limit: Optional[float] = None
+
 class HealthResponse(BaseModel):
     status: str
     uptime: float
@@ -79,9 +89,17 @@ class UnifiedServer:
 
         # Setup CORS
         if cors_enabled:
+            allowed_origins = ["*"]
+            if UNIFIED_CONFIG_AVAILABLE and self.config.environment.value == 'production':
+                # In production default to restrictive CORS; override via env CORS_ORIGINS
+                origins_env = os.getenv('CORS_ORIGINS', '')
+                if origins_env:
+                    allowed_origins = [o.strip() for o in origins_env.split(',') if o.strip()]
+                else:
+                    allowed_origins = []  # no wildcard in prod by default
             self.app.add_middleware(
                 CORSMiddleware,
-                allow_origins=["*"],
+                allow_origins=allowed_origins,
                 allow_credentials=True,
                 allow_methods=["*"],
                 allow_headers=["*"],
@@ -195,6 +213,9 @@ class UnifiedServer:
             """Prometheus metrics endpoint"""
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+        # In-flight de-duplication map
+        inflight: Dict[str, asyncio.Task] = {}
+
         @self.app.post("/api/v1/scrape", response_model=ScrapeResponse)
         async def scrape_sources(request: ScrapeRequest):
             """Main scraping endpoint"""
@@ -206,12 +227,22 @@ class UnifiedServer:
                 self.logger.info(f"Cache hit for {cache_key}")
                 return cached
             cache_misses.inc()
+            # In-flight de-duplication
+            if cache_key in inflight:
+                return await inflight[cache_key]
             try:
                 self.logger.info(f"Scraping request: query='{request.query}', sources={request.sources}")
 
                 # Create orchestrator and perform scraping
                 orchestrator = create_scraping_orchestrator()
-                results = await orchestrator.scrape_all_sources(request.query, request.sources)
+                async def _run():
+                    return await orchestrator.scrape_all_sources(request.query, request.sources)
+                task = asyncio.create_task(_run())
+                inflight[cache_key] = task
+                try:
+                    results = await task
+                finally:
+                    inflight.pop(cache_key, None)
 
                 # Process results
                 successful_results = [r for r in results if r.success]
@@ -263,20 +294,32 @@ class UnifiedServer:
 
         # Unified Research endpoint using UnifiedResearchEngine
         @self.app.post("/api/v1/research")
-        async def research_endpoint(payload: Dict[str, Any]):
+        async def research_endpoint(payload: ResearchRequestModel):
             try:
                 from unified_research_engine import UnifiedResearchEngine, ResearchRequest
                 engine = UnifiedResearchEngine()
                 req = ResearchRequest(
-                    query=payload.get('query', ''),
-                    strategy=payload.get('strategy', 'balanced'),
-                    domain=payload.get('domain', 'general'),
-                    sources=payload.get('sources'),
-                    max_results=payload.get('max_results', 10),
-                    user_id=payload.get('user_id', 'default'),
-                    budget_limit=payload.get('budget_limit')
+                    query=payload.query,
+                    strategy=payload.strategy,
+                    domain=payload.domain,
+                    sources=payload.sources,
+                    max_results=payload.max_results,
+                    user_id=payload.user_id,
+                    budget_limit=payload.budget_limit
                 )
-                result = await engine.research(req)
+                # In-flight de-duplication for research
+                rkey = f"research|{payload.query.lower().strip()}|{payload.strategy}|{payload.domain}|{','.join(payload.sources or [])}"
+                if rkey in inflight:
+                    result = await inflight[rkey]
+                else:
+                    async def _run_research():
+                        return await engine.research(req)
+                    task = asyncio.create_task(_run_research())
+                    inflight[rkey] = task
+                    try:
+                        result = await task
+                    finally:
+                        inflight.pop(rkey, None)
                 return {
                     'query_id': result.query_id,
                     'success': result.success,
