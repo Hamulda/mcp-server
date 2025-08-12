@@ -5,9 +5,13 @@ Unified FastAPI Server - Čistý a funkční server pro Academic Research Tool
 import asyncio
 import logging
 import time
+import os
 from typing import Dict, List, Optional, Any
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 import prometheus_client
@@ -105,6 +109,12 @@ class UnifiedServer:
                 allow_headers=["*"],
             )
 
+        # Rate limiting
+        self.limiter = Limiter(key_func=lambda request: request.client.host)
+        self.app.state.limiter = self.limiter
+        self.app.add_exception_handler(RateLimitExceeded, self._rate_limit_handler)
+        self.app.add_middleware(SlowAPIMiddleware)
+
         # Initialize cache manager (shared cache adapter)
         self.cache = CacheManager()
 
@@ -116,6 +126,9 @@ class UnifiedServer:
 
         # Setup logging
         self.logger = logging.getLogger(__name__)
+
+    async def _rate_limit_handler(self, request, exc):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     def _setup_routes(self):
         """Setup all API routes"""
@@ -217,10 +230,11 @@ class UnifiedServer:
         inflight: Dict[str, asyncio.Task] = {}
 
         @self.app.post("/api/v1/scrape", response_model=ScrapeResponse)
-        async def scrape_sources(request: ScrapeRequest):
+        @self.limiter.limit(os.getenv('RATE_LIMIT_SCRAPE', '30/minute'))
+        async def scrape_sources(body: ScrapeRequest, request: Request):
             """Main scraping endpoint"""
             start_time = time.time()
-            cache_key = f"{request.query.lower().strip()}|{','.join(request.sources or [])}"
+            cache_key = f"{body.query.lower().strip()}|{','.join(body.sources or [])}"
             cached = self.cache.get(cache_key)
             if cached:
                 cache_hits.inc()
@@ -231,12 +245,12 @@ class UnifiedServer:
             if cache_key in inflight:
                 return await inflight[cache_key]
             try:
-                self.logger.info(f"Scraping request: query='{request.query}', sources={request.sources}")
+                self.logger.info(f"Scraping request: query='{body.query}', sources={body.sources}")
 
                 # Create orchestrator and perform scraping
                 orchestrator = create_scraping_orchestrator()
                 async def _run():
-                    return await orchestrator.scrape_all_sources(request.query, request.sources)
+                    return await orchestrator.scrape_all_sources(body.query, body.sources)
                 task = asyncio.create_task(_run())
                 inflight[cache_key] = task
                 try:
@@ -267,7 +281,7 @@ class UnifiedServer:
 
                 response = ScrapeResponse(
                     success=len(successful_results) > 0,
-                    query=request.query,
+                    query=body.query,
                     results=results_data,
                     total_sources=len(results),
                     successful_sources=len(successful_results),
@@ -284,7 +298,7 @@ class UnifiedServer:
 
                 response = ScrapeResponse(
                     success=False,
-                    query=request.query,
+                    query=body.query,
                     results=[],
                     total_sources=0,
                     successful_sources=0,
@@ -294,7 +308,8 @@ class UnifiedServer:
 
         # Unified Research endpoint using UnifiedResearchEngine
         @self.app.post("/api/v1/research")
-        async def research_endpoint(payload: ResearchRequestModel):
+        @self.limiter.limit(os.getenv('RATE_LIMIT_RESEARCH', '10/minute'))
+        async def research_endpoint(payload: ResearchRequestModel, request: Request):
             try:
                 from unified_research_engine import UnifiedResearchEngine, ResearchRequest
                 engine = UnifiedResearchEngine()
