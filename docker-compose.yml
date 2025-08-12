@@ -3,26 +3,62 @@ version: '3.8'
 services:
   research-tool:
     build: .
+    container_name: research-tool
     ports:
-      - "8501:8501"
+      - "8000:8000"
     environment:
+      - ENVIRONMENT=production
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DATABASE_PATH=/app/data/research.db
       - ENABLE_COST_TRACKING=true
       - DAILY_COST_LIMIT=50.0
-      - LOCAL_MODE=true
+      - LOCAL_MODE=false
       - AGGRESSIVE_CACHING=true
     volumes:
       - ./data:/app/data
       - ./reports:/app/reports
       - ./cache:/app/cache
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/health | grep -q healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - research-tool
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Optional: Node exporter for host metrics (may require adjustments on Mac/Windows)
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
 
 volumes:
   research-data:
