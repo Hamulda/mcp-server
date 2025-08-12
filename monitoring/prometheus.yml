@@ -10,7 +10,7 @@ scrape_configs:
   # Research Tool aplikace
   - job_name: 'research-tool'
     static_configs:
-      - targets: ['research-tool:8501']
+      - targets: ['research-tool:8000']
     metrics_path: /metrics
     scrape_interval: 30s
 

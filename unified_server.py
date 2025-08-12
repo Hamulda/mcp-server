@@ -10,6 +10,10 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+import prometheus_client
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
+from fastapi import Response
+from cache_manager import CacheManager
 
 # Import unified components
 try:
@@ -20,6 +24,12 @@ try:
 except ImportError as e:
     UNIFIED_CONFIG_AVAILABLE = False
     print(f"⚠️  Unified config unavailable: {e}")
+
+# Globální metriky (singletony)
+scrape_counter = Counter('scrape_requests_total', 'Počet scraping požadavků', ['source'], registry=REGISTRY)
+scrape_duration = Histogram('scrape_duration_seconds', 'Doba trvání scraping požadavků', ['source'], registry=REGISTRY)
+cache_hits = Counter('cache_hits_total', 'Počet cache hitů', registry=REGISTRY)
+cache_misses = Counter('cache_misses_total', 'Počet cache missů', registry=REGISTRY)
 
 # Pydantic models pro API
 class ScrapeRequest(BaseModel):
@@ -76,6 +86,9 @@ class UnifiedServer:
                 allow_methods=["*"],
                 allow_headers=["*"],
             )
+
+        # Initialize cache manager (shared cache adapter)
+        self.cache = CacheManager()
 
         # Setup routes
         self._setup_routes()
@@ -177,11 +190,22 @@ class UnifiedServer:
                 self.logger.error(f"Failed to get sources: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to retrieve sources: {str(e)}")
 
+        @self.app.get("/metrics")
+        async def metrics():
+            """Prometheus metrics endpoint"""
+            return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
         @self.app.post("/api/v1/scrape", response_model=ScrapeResponse)
         async def scrape_sources(request: ScrapeRequest):
             """Main scraping endpoint"""
             start_time = time.time()
-
+            cache_key = f"{request.query.lower().strip()}|{','.join(request.sources or [])}"
+            cached = self.cache.get(cache_key)
+            if cached:
+                cache_hits.inc()
+                self.logger.info(f"Cache hit for {cache_key}")
+                return cached
+            cache_misses.inc()
             try:
                 self.logger.info(f"Scraping request: query='{request.query}', sources={request.sources}")
 
@@ -196,19 +220,21 @@ class UnifiedServer:
                 # Convert ScrapingResult objects to dictionaries
                 results_data = []
                 for result in results:
+                    scrape_counter.labels(result.source).inc()
+                    if result.response_time is not None:
+                        scrape_duration.labels(result.source).observe(result.response_time)
+
                     result_dict = {
                         "source": result.source,
                         "success": result.success,
                         "data": result.data,
                         "error": result.error,
                         "execution_time": result.response_time,  # Použij response_time místo execution_time
-                        "cached": result.cached
+                        "cached": False
                     }
                     results_data.append(result_dict)
 
-                self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} sources successful")
-
-                return ScrapeResponse(
+                response = ScrapeResponse(
                     success=len(successful_results) > 0,
                     query=request.query,
                     results=results_data,
@@ -216,12 +242,16 @@ class UnifiedServer:
                     successful_sources=len(successful_results),
                     execution_time=execution_time
                 )
+                self.cache.set(cache_key, response)
+                self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} sources successful")
+
+                return response
 
             except Exception as e:
                 self.logger.error(f"Scraping failed: {e}")
                 execution_time = time.time() - start_time
 
-                return ScrapeResponse(
+                response = ScrapeResponse(
                     success=False,
                     query=request.query,
                     results=[],
@@ -229,6 +259,40 @@ class UnifiedServer:
                     successful_sources=0,
                     execution_time=execution_time
                 )
+                return response
+
+        # Unified Research endpoint using UnifiedResearchEngine
+        @self.app.post("/api/v1/research")
+        async def research_endpoint(payload: Dict[str, Any]):
+            try:
+                from unified_research_engine import UnifiedResearchEngine, ResearchRequest
+                engine = UnifiedResearchEngine()
+                req = ResearchRequest(
+                    query=payload.get('query', ''),
+                    strategy=payload.get('strategy', 'balanced'),
+                    domain=payload.get('domain', 'general'),
+                    sources=payload.get('sources'),
+                    max_results=payload.get('max_results', 10),
+                    user_id=payload.get('user_id', 'default'),
+                    budget_limit=payload.get('budget_limit')
+                )
+                result = await engine.research(req)
+                return {
+                    'query_id': result.query_id,
+                    'success': result.success,
+                    'sources_found': result.sources_found,
+                    'total_tokens': result.total_tokens,
+                    'cost': result.cost,
+                    'execution_time': result.execution_time,
+                    'summary': result.summary,
+                    'key_findings': result.key_findings,
+                    'cached': result.cached,
+                    'timestamp': result.timestamp.isoformat(),
+                    'detailed_results': result.detailed_results,
+                }
+            except Exception as e:
+                self.logger.error(f"Research endpoint failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
 
     def get_app(self) -> FastAPI:
         """Get FastAPI application instance"""

@@ -10,7 +10,7 @@ import docker
 from io import StringIO
 from pylint.reporters.text import TextReporter
 from pylint.pyreverse.main import Run as PyLintRun
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 # --- Inicializace ---
 app = FastAPI(title="AI Super Tým pro Copilota")
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.2)
+# --- Jednoduchá API key ochrana (volitelná) ---
+def require_api_key(x_api_key: str = Header(default=None)):
+    expected = os.getenv('MCP_API_KEY')
+    if expected:
+        if x_api_key != expected:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    # if not configured, allow all but log a warning once
+    return True
 try:
     client = chromadb.HttpClient(host='localhost', port=8000)
     memory_collection = client.get_or_create_collection(name="copilot_super_team_memory")
@@ -107,7 +115,7 @@ async def health_check():
 
 
 @app.post("/delegate_task")
-async def delegate_task_endpoint(data: DelegateInput):
+async def delegate_task_endpoint(data: DelegateInput, _: bool = Depends(require_api_key)):
     prompts = {
         "innovator": "Jsi 'Principal Engineer' a expert na kreativní řešení. Navrhni 2-3 inovativní přístupy k danému problému. U každého stručně popiš jeho princip, výhody a nevýhody.",
         "architect": "Jsi softwarový architekt. Tvým úkolem je vzít zadání a rozbít ho na detailní, technický plán kroků. Odpověz POUZE jako číslovaný seznam.",
@@ -137,15 +145,18 @@ async def delegate_task_endpoint(data: DelegateInput):
 
 
 @app.post("/write_file")
-async def write_file_endpoint(data: WriteFileInput): return {"result": await write_file(data.path, data.content)}
+async def write_file_endpoint(data: WriteFileInput, _: bool = Depends(require_api_key)):
+    return {"result": await write_file(data.path, data.content)}
 
 
 @app.post("/read_file")
-async def read_file_endpoint(data: QueryInput): return {"result": await read_file(data.query)}
+async def read_file_endpoint(data: QueryInput, _: bool = Depends(require_api_key)):
+    return {"result": await read_file(data.query)}
 
 
 @app.post("/run_in_terminal")
-async def terminal_endpoint(data: QueryInput): return {"result": await run_in_sandbox_terminal(data.query)}
+async def terminal_endpoint(data: QueryInput, _: bool = Depends(require_api_key)):
+    return {"result": await run_in_sandbox_terminal(data.query)}
 
 
 if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=8001)

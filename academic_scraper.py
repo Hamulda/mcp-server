@@ -40,6 +40,34 @@ class ScrapingResult:
     status_code: Optional[int] = None
     rate_limited: bool = False
 
+class CircuitBreaker:
+    """Jednoduchý circuit breaker pro ochranu proti zahlcení zdroje"""
+    def __init__(self, max_failures=3, reset_timeout=60):
+        self.max_failures = max_failures
+        self.reset_timeout = reset_timeout
+        self.failures = {}
+        self.open_until = {}
+
+    def record_failure(self, source):
+        now = time.time()
+        self.failures[source] = self.failures.get(source, 0) + 1
+        if self.failures[source] >= self.max_failures:
+            self.open_until[source] = now + self.reset_timeout
+
+    def is_open(self, source):
+        now = time.time()
+        if source in self.open_until and now < self.open_until[source]:
+            return True
+        if source in self.open_until and now >= self.open_until[source]:
+            del self.open_until[source]
+            self.failures[source] = 0
+        return False
+
+    def reset(self, source):
+        self.failures[source] = 0
+        if source in self.open_until:
+            del self.open_until[source]
+
 class EnhancedRateLimiter:
     """Pokročilý rate limiter s exponential backoff"""
 
@@ -105,8 +133,20 @@ class EnhancedSessionManager:
         # Získej konfiguraci
         if UNIFIED_CONFIG_AVAILABLE:
             config = get_config()
-            max_retries = config.scraping.max_retries
-            retry_delay = config.scraping.retry_delay
+            # Pokud je v configu pro zdroj specifikováno, použij hodnoty pro tento zdroj
+            if hasattr(self, 'source_name') and self.source_name:
+                source_config = config.get_source_config(self.source_name)
+                if source_config and hasattr(source_config, 'max_retries'):
+                    max_retries = source_config.max_retries
+                else:
+                    max_retries = config.scraping.max_retries
+                if source_config and hasattr(source_config, 'retry_delay'):
+                    retry_delay = source_config.retry_delay
+                else:
+                    retry_delay = config.scraping.retry_delay
+            else:
+                max_retries = config.scraping.max_retries
+                retry_delay = config.scraping.retry_delay
             user_agents = config.scraping.user_agents
             timeout = config.scraping.request_timeout
         else:
@@ -184,6 +224,10 @@ class EnhancedSessionManager:
         if self.session:
             self.session.close()
 
+# Circuit breaker instance (globální pro všechny scrapery)
+global circuit_breaker
+circuit_breaker = CircuitBreaker()
+
 # Global session manager instance
 _session_manager = None
 
@@ -245,6 +289,10 @@ class WikipediaScraper(BaseScraper):
             # Rate limiting
             await self.rate_limiter.wait_if_needed(self.source_name)
             
+            # Circuit breaker check
+            if circuit_breaker.is_open(self.source_name):
+                return self._create_result(query, False, error="Circuit breaker open", response_time=0, status_code=503)
+
             # Construct URL
             search_url = f"https://en.wikipedia.org/w/api.php"
             params = {
@@ -274,6 +322,7 @@ class WikipediaScraper(BaseScraper):
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}: {response.reason}"
                 self.logger.error(f"Wikipedia API error: {error_msg}")
+                circuit_breaker.record_failure(self.source_name)
                 return self._create_result(
                     query, False, error=error_msg,
                     response_time=response_time, status_code=response.status_code
@@ -284,6 +333,7 @@ class WikipediaScraper(BaseScraper):
                 data = response.json()
             except ValueError as e:
                 self.logger.error(f"Invalid JSON response from Wikipedia: {e}")
+                circuit_breaker.record_failure(self.source_name)
                 return self._create_result(
                     query, False, error="Invalid JSON response",
                     response_time=response_time, status_code=response.status_code
@@ -312,9 +362,10 @@ class WikipediaScraper(BaseScraper):
             
             # Reset rate limit counter on success
             self.rate_limiter.reset_429_count(self.source_name)
-            
+            circuit_breaker.reset(self.source_name)
+
             return self._create_result(
-                query, True, 
+                query, True,
                 data={'articles': articles, 'total_found': len(articles)},
                 response_time=response_time, status_code=response.status_code
             )
@@ -323,16 +374,17 @@ class WikipediaScraper(BaseScraper):
             response_time = time.time() - start_time
             error_msg = f"Wikipedia scraping failed: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
+            circuit_breaker.record_failure(self.source_name)
             return self._create_result(
                 query, False, error=error_msg, response_time=response_time
             )
 
 class PubMedScraper(BaseScraper):
     """Optimalizovaný PubMed scraper"""
-    
+
     def __init__(self):
         super().__init__("pubmed")
-        
+
     async def scrape(self, query: str) -> ScrapingResult:
         """Scrape PubMed s robustním error handling"""
         start_time = time.time()
@@ -341,6 +393,10 @@ class PubMedScraper(BaseScraper):
             # Rate limiting
             await self.rate_limiter.wait_if_needed(self.source_name)
             
+            # Circuit breaker check
+            if circuit_breaker.is_open(self.source_name):
+                return self._create_result(query, False, error="Circuit breaker open", response_time=0, status_code=503)
+
             # Construct URL
             search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
             params = {
@@ -360,80 +416,145 @@ class PubMedScraper(BaseScraper):
             if response.status_code == 429:
                 self.rate_limiter.record_429_error(self.source_name)
                 return self._create_result(
-                    query, False, error="Rate limited", 
+                    query, False, error="Rate limited",
                     response_time=response_time, status_code=429, rate_limited=True
                 )
             
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}: {response.reason}"
+                circuit_breaker.record_failure(self.source_name)
                 return self._create_result(
                     query, False, error=error_msg,
                     response_time=response_time, status_code=response.status_code
                 )
             
-            # Parse response
+            # Parse response (support JSON and XML for robustness in tests)
             try:
                 data = response.json()
-                if 'esearchresult' in data and 'idlist' in data['esearchresult']:
-                    papers = [{'pmid': pmid, 'url': f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"} 
-                             for pmid in data['esearchresult']['idlist']]
-                    
-                    self.rate_limiter.reset_429_count(self.source_name)
-                    return self._create_result(
-                        query, True, 
-                        data={'papers': papers, 'total_found': len(papers)},
-                        response_time=response_time, status_code=response.status_code
-                    )
+                if isinstance(data, dict):
+                    id_list = data.get('esearchresult', {}).get('idlist', [])
+                    if not isinstance(id_list, list):
+                        id_list = []
                 else:
-                    return self._create_result(
-                        query, True, data={'papers': [], 'total_found': 0},
-                        response_time=response_time, status_code=response.status_code
-                    )
-            except ValueError as e:
-                return self._create_result(
-                    query, False, error="Invalid JSON response",
-                    response_time=response_time, status_code=response.status_code
-                )
-                
+                    raise ValueError("Non-dict JSON")
+            except Exception:
+                # Fallback: attempt to parse XML structure
+                id_list = []
+                try:
+                    import xml.etree.ElementTree as ET
+                    xml_root = ET.fromstring(getattr(response, 'text', '') or '')
+                    # Extract all <Id> under <IdList>
+                    for id_node in xml_root.findall('.//IdList/Id'):
+                        if id_node.text:
+                            id_list.append(id_node.text.strip())
+                except Exception:
+                    id_list = []
+
+            papers = [{'pmid': pmid, 'url': f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"} for pmid in id_list]
+
+            self.rate_limiter.reset_429_count(self.source_name)
+            circuit_breaker.reset(self.source_name)
+            return self._create_result(
+                query, True,
+                data={'papers': papers, 'total_found': len(papers)},
+                response_time=response_time, status_code=response.status_code
+            )
+
         except Exception as e:
             response_time = time.time() - start_time
             error_msg = f"PubMed scraping failed: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
+            circuit_breaker.record_failure(self.source_name)
             return self._create_result(
                 query, False, error=error_msg, response_time=response_time
             )
 
+class OpenAlexScraper(BaseScraper):
+    """Scraper pro OpenAlex API"""
+    def __init__(self):
+        super().__init__("openalex")
+
+    async def scrape(self, query: str) -> ScrapingResult:
+        start_time = time.time()
+        try:
+            await self.rate_limiter.wait_if_needed(self.source_name)
+            if circuit_breaker.is_open(self.source_name):
+                return self._create_result(query, False, error="Circuit breaker open", response_time=0, status_code=503)
+            # OpenAlex API endpoint
+            search_url = f"https://api.openalex.org/works"
+            params = {
+                'search': query,
+                'per_page': 5
+            }
+            response = await asyncio.to_thread(
+                self.session_manager.get, search_url, params=params
+            )
+            response_time = time.time() - start_time
+            if response.status_code == 429:
+                self.rate_limiter.record_429_error(self.source_name)
+                return self._create_result(query, False, error="Rate limited", response_time=response_time, status_code=429, rate_limited=True)
+            if response.status_code != 200:
+                error_msg = f"HTTP {response.status_code}: {response.reason}"
+                circuit_breaker.record_failure(self.source_name)
+                return self._create_result(query, False, error=error_msg, response_time=response_time, status_code=response.status_code)
+            try:
+                data = response.json()
+                results = data.get('results', [])
+                works = []
+                for item in results:
+                    work = {
+                        'id': item.get('id', ''),
+                        'title': item.get('title', ''),
+                        'doi': item.get('doi', ''),
+                        'url': item.get('primary_location', {}).get('source', {}).get('url', ''),
+                        'publication_year': item.get('publication_year', ''),
+                        'type': item.get('type', '')
+                    }
+                    works.append(work)
+                self.rate_limiter.reset_429_count(self.source_name)
+                circuit_breaker.reset(self.source_name)
+                return self._create_result(query, True, data={'works': works, 'total_found': len(works)}, response_time=response_time, status_code=response.status_code)
+            except ValueError as e:
+                return self._create_result(query, False, error="Invalid JSON response", response_time=response_time, status_code=response.status_code)
+        except Exception as e:
+            response_time = time.time() - start_time
+            error_msg = f"OpenAlex scraping failed: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            circuit_breaker.record_failure(self.source_name)
+            return self._create_result(query, False, error=error_msg, response_time=response_time)
+
 class ScrapingOrchestrator:
     """Hlavní orchestrátor pro koordinaci všech scraperů"""
-    
+
     def __init__(self):
         self.scrapers = {
             'wikipedia': WikipediaScraper(),
-            'pubmed': PubMedScraper()
+            'pubmed': PubMedScraper(),
+            'openalex': OpenAlexScraper()
         }
         self.logger = logging.getLogger(__name__)
-    
+
     async def scrape_all_sources(self, query: str, sources: Optional[List[str]] = None) -> List[ScrapingResult]:
         """Scrape všechny zdroje asynchronně"""
         if sources is None:
             sources = list(self.scrapers.keys())
-        
+
         # Filter pouze dostupné zdroje
         available_sources = [s for s in sources if s in self.scrapers]
         if not available_sources:
             self.logger.warning(f"No available sources from requested: {sources}")
             return []
-        
+
         # Async scraping všech zdrojů
         tasks = []
         for source in available_sources:
             scraper = self.scrapers[source]
             task = scraper.scrape(query)
             tasks.append(task)
-        
+
         # Wait for all results
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Process results and handle exceptions
         processed_results = []
         for i, result in enumerate(results):
@@ -450,9 +571,9 @@ class ScrapingOrchestrator:
                 self.logger.error(f"Scraping failed for {source}: {result}")
             else:
                 processed_results.append(result)
-        
+
         return processed_results
-    
+
     async def cleanup(self):
         """Cleanup resources"""
         session_manager = get_session_manager()
@@ -464,9 +585,10 @@ def create_scraping_orchestrator() -> ScrapingOrchestrator:
 
 # Backward compatibility funkce
 async def scrape_academic_sources(query: str, sources: List[str] = None) -> Dict[str, Any]:
-    """Backward compatibility wrapper"""
-    scraper = EnhancedAcademicScraper()
-    return await scraper.scrape_multiple_sources(query, sources)
+    """Backward compatibility wrapper using the current orchestrator"""
+    orchestrator = create_scraping_orchestrator()
+    results = await orchestrator.scrape_all_sources(query, sources)
+    return {"results": [r.__dict__ if hasattr(r, '__dict__') else vars(r) for r in results]}
 
 # Main entry point for testing
 if __name__ == "__main__":

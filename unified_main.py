@@ -15,7 +15,6 @@ import json
 # Import optimized components
 try:
     from unified_config import get_config, create_config, Environment
-    from unified_server import create_unified_server
     from academic_scraper import create_scraping_orchestrator
     UNIFIED_AVAILABLE = True
 except ImportError as e:
@@ -115,8 +114,16 @@ class UnifiedResearchTool:
         logger.info(f"Starting {server_type} server...")
 
         if server_type == "unified":
-            server = create_unified_server()
-            server.run()
+            # Run FastAPI unified server via uvicorn
+            from unified_server import create_app
+            import uvicorn
+            app = create_app()
+            uvicorn.run(
+                app,
+                host=self.config.api.host,
+                port=self.config.api.port,
+                reload=self.config.api.debug
+            )
         elif server_type == "flask":
             from app import create_app
             app = create_app()
@@ -158,7 +165,8 @@ class UnifiedResearchTool:
 
         # Check dependencies
         try:
-            import requests, aiohttp, beautifulsoup4
+            import requests, aiohttp  # noqa: F401
+            import bs4  # noqa: F401
             print("✅ Core Dependencies: OK")
         except ImportError as e:
             print(f"❌ Missing Dependencies: {e}")

@@ -9,7 +9,7 @@ aiohttp==3.12.15
 beautifulsoup4>=4.12,<5
 
 # Data validation
-pydantic==2.5.3
+pydantic>=2.10.4,<3
 
 # Academic sources
 scholarly==1.7.11
