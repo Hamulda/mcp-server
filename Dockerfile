@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 EXPOSE 8000
-CMD ["python", "app.py"]
+CMD ["uvicorn", "unified_server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

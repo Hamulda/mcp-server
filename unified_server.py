@@ -1,6 +1,5 @@
 """
 Unified FastAPI Server - Čistý a funkční server pro Academic Research Tool
-Nahrazuje poškozený původní server novým robustním řešením
 """
 
 import asyncio
@@ -202,13 +201,12 @@ class UnifiedServer:
                         "success": result.success,
                         "data": result.data,
                         "error": result.error,
-                        "response_time": result.response_time,
-                        "status_code": result.status_code,
-                        "rate_limited": result.rate_limited
+                        "execution_time": result.response_time,  # Použij response_time místo execution_time
+                        "cached": result.cached
                     }
                     results_data.append(result_dict)
 
-                self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} successful in {execution_time:.2f}s")
+                self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} sources successful")
 
                 return ScrapeResponse(
                     success=len(successful_results) > 0,
@@ -220,49 +218,42 @@ class UnifiedServer:
                 )
 
             except Exception as e:
+                self.logger.error(f"Scraping failed: {e}")
                 execution_time = time.time() - start_time
-                error_msg = f"Scraping failed: {str(e)}"
-                self.logger.error(error_msg, exc_info=True)
 
-                raise HTTPException(
-                    status_code=500,
-                    detail={
-                        "error": error_msg,
-                        "execution_time": execution_time,
-                        "query": request.query
-                    }
+                return ScrapeResponse(
+                    success=False,
+                    query=request.query,
+                    results=[],
+                    total_sources=0,
+                    successful_sources=0,
+                    execution_time=execution_time
                 )
 
+    def get_app(self) -> FastAPI:
+        """Get FastAPI application instance"""
+        return self.app
+
+# Create server instance
 def create_app() -> FastAPI:
-    """Factory function pro vytvoření FastAPI app"""
+    """Create and configure FastAPI application"""
     server = UnifiedServer()
-    return server.app
+    return server.get_app()
 
-# Create app instance
-app = create_app()
-
-# Main entry point
+# For direct running
 if __name__ == "__main__":
     import uvicorn
 
-    # Load configuration
-    if UNIFIED_CONFIG_AVAILABLE:
+    app = create_app()
+
+    # Load config for port
+    try:
         config = get_config()
-        host = config.api.host
         port = config.api.port
-        debug = config.api.debug
-    else:
-        host = "0.0.0.0"
+        host = config.api.host
+    except:
         port = 8000
-        debug = True
+        host = "0.0.0.0"
 
-    print(f"🚀 Starting Unified Academic Research Server on {host}:{port}")
-    print(f"📚 Documentation available at: http://{host}:{port}/docs")
-
-    uvicorn.run(
-        "unified_server:app",
-        host=host,
-        port=port,
-        reload=debug,
-        log_level="info"
-    )
+    print(f"🚀 Starting Academic Research Tool API on {host}:{port}")
+    uvicorn.run(app, host=host, port=port, reload=True)
