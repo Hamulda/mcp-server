@@ -4,6 +4,22 @@
     "title": "Research Tool Monitoring",
     "tags": ["research", "monitoring"],
     "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    },
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "schemaVersion": 30,
+    "version": 1,
     "panels": [
       {
         "id": 1,
@@ -12,12 +28,23 @@
         "targets": [
           {
             "expr": "rate(research_api_calls_total[1h])",
-            "legendFormat": "API Calls/hour"
+            "legendFormat": "API Calls/hour",
+            "refId": "A"
           }
         ],
         "yAxes": [
           {
-            "label": "Calls/hour"
+            "label": "Calls/hour",
+            "min": 0
+          },
+          {
+            "show": false
+          }
+        ],
+        "xAxes": [
+          {
+            "show": true,
+            "mode": "time"
           }
         ],
         "gridPos": {
@@ -25,6 +52,19 @@
           "w": 12,
           "x": 0,
           "y": 0
+        },
+        "legend": {
+          "show": true,
+          "alignAsTable": false,
+          "rightSide": false
+        },
+        "fill": 1,
+        "linewidth": 2,
+        "steppedLine": false,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
         }
       },
       {
@@ -34,7 +74,8 @@
         "targets": [
           {
             "expr": "research_daily_cost_usd",
-            "legendFormat": "Cost USD"
+            "legendFormat": "Daily Cost ($)",
+            "refId": "A"
           }
         ],
         "gridPos": {
@@ -42,16 +83,61 @@
           "w": 12,
           "x": 12,
           "y": 0
+        },
+        "valueName": "current",
+        "valueFontSize": "80%",
+        "format": "currencyUSD",
+        "prefix": "",
+        "postfix": "",
+        "thresholds": "50,100",
+        "colors": [
+          "rgba(245, 54, 54, 0.9)",
+          "rgba(237, 129, 40, 0.89)",
+          "rgba(50, 172, 45, 0.97)"
+        ],
+        "colorBackground": false,
+        "colorValue": true,
+        "sparkline": {
+          "show": true,
+          "full": false,
+          "lineColor": "rgb(31, 120, 193)",
+          "fillColor": "rgba(31, 118, 189, 0.18)"
         }
       },
       {
         "id": 3,
-        "title": "Token Usage",
+        "title": "Request Response Times",
         "type": "graph",
         "targets": [
           {
-            "expr": "research_tokens_used_total",
-            "legendFormat": "Tokens Used"
+            "expr": "histogram_quantile(0.50, rate(research_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(research_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "90th percentile",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(research_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "99th percentile",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Response Time (s)",
+            "min": 0
+          },
+          {
+            "show": false
+          }
+        ],
+        "xAxes": [
+          {
+            "show": true,
+            "mode": "time"
           }
         ],
         "gridPos": {
@@ -59,6 +145,22 @@
           "w": 24,
           "x": 0,
           "y": 8
+        },
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "rightSide": false,
+          "avg": true,
+          "current": true,
+          "max": true,
+          "min": true
+        },
+        "fill": 1,
+        "linewidth": 2,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
         }
       },
       {
@@ -68,7 +170,23 @@
         "targets": [
           {
             "expr": "rate(research_errors_total[5m])",
-            "legendFormat": "Errors/minute"
+            "legendFormat": "Errors/second",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Errors/sec",
+            "min": 0
+          },
+          {
+            "show": false
+          }
+        ],
+        "xAxes": [
+          {
+            "show": true,
+            "mode": "time"
           }
         ],
         "gridPos": {
@@ -76,16 +194,57 @@
           "w": 12,
           "x": 0,
           "y": 16
-        }
+        },
+        "legend": {
+          "show": true
+        },
+        "fill": 1,
+        "linewidth": 2,
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [0.1],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": ["A", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "avg"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High Error Rate Alert",
+          "noDataState": "no_data",
+          "notifications": []
+        },
+        "thresholds": [
+          {
+            "value": 0.05,
+            "colorMode": "critical",
+            "op": "gt"
+          }
+        ]
       },
       {
         "id": 5,
-        "title": "Response Time",
-        "type": "graph",
+        "title": "Active Connections",
+        "type": "singlestat",
         "targets": [
           {
-            "expr": "research_response_time_seconds",
-            "legendFormat": "Response Time (s)"
+            "expr": "research_active_connections",
+            "legendFormat": "Active Connections",
+            "refId": "A"
           }
         ],
         "gridPos": {
@@ -93,14 +252,76 @@
           "w": 12,
           "x": 12,
           "y": 16
+        },
+        "valueName": "current",
+        "valueFontSize": "80%",
+        "format": "none",
+        "thresholds": "50,100",
+        "colors": [
+          "rgba(50, 172, 45, 0.97)",
+          "rgba(237, 129, 40, 0.89)",
+          "rgba(245, 54, 54, 0.9)"
+        ],
+        "colorBackground": false,
+        "colorValue": true,
+        "sparkline": {
+          "show": true,
+          "full": false,
+          "lineColor": "rgb(31, 120, 193)",
+          "fillColor": "rgba(31, 118, 189, 0.18)"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(research_cache_hits_total[5m]) / (rate(research_cache_hits_total[5m]) + rate(research_cache_misses_total[5m])) * 100",
+            "legendFormat": "Hit Rate %",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Hit Rate (%)",
+            "min": 0,
+            "max": 100
+          },
+          {
+            "show": false
+          }
+        ],
+        "xAxes": [
+          {
+            "show": true,
+            "mode": "time"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "rightSide": false,
+          "avg": true,
+          "current": true,
+          "max": true,
+          "min": true
+        },
+        "fill": 1,
+        "linewidth": 2,
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
         }
       }
-    ],
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
-    "refresh": "30s"
+    ]
   }
 }
 

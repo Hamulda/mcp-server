@@ -6,6 +6,8 @@ import asyncio
 import logging
 import time
 import os
+import hashlib
+import json
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +37,8 @@ scrape_counter = Counter('scrape_requests_total', 'Počet scraping požadavků',
 scrape_duration = Histogram('scrape_duration_seconds', 'Doba trvání scraping požadavků', ['source'], registry=REGISTRY)
 cache_hits = Counter('cache_hits_total', 'Počet cache hitů', registry=REGISTRY)
 cache_misses = Counter('cache_misses_total', 'Počet cache missů', registry=REGISTRY)
+error_counter = Counter('scrape_errors_total', 'Počet chyb při scrapování/researchi', ['endpoint', 'source', 'error_code'], registry=REGISTRY)
+research_duration = Histogram('research_duration_seconds', 'Doba trvání research požadavků', ['source'], registry=REGISTRY)
 
 # Pydantic models pro API
 class ScrapeRequest(BaseModel):
@@ -239,11 +243,20 @@ class UnifiedServer:
             if cached:
                 cache_hits.inc()
                 self.logger.info(f"Cache hit for {cache_key}")
-                return cached
+                etag = etag_for_response(cached.dict() if hasattr(cached, 'dict') else cached)
+                if_none_match = request.headers.get("if-none-match")
+                if if_none_match and if_none_match == etag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                return Response(content=cached.json() if hasattr(cached, 'json') else json.dumps(cached), media_type="application/json", headers={"ETag": etag})
             cache_misses.inc()
             # In-flight de-duplication
             if cache_key in inflight:
-                return await inflight[cache_key]
+                result = await inflight[cache_key]
+                etag = etag_for_response(result.dict() if hasattr(result, 'dict') else result)
+                if_none_match = request.headers.get("if-none-match")
+                if if_none_match and if_none_match == etag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                return Response(content=result.json() if hasattr(result, 'json') else json.dumps(result), media_type="application/json", headers={"ETag": etag})
             try:
                 self.logger.info(f"Scraping request: query='{body.query}', sources={body.sources}")
 
@@ -268,7 +281,9 @@ class UnifiedServer:
                     scrape_counter.labels(result.source).inc()
                     if result.response_time is not None:
                         scrape_duration.labels(result.source).observe(result.response_time)
-
+                    if not result.success:
+                        error_code = str(result.error) if result.error else "unknown"
+                        error_counter.labels(endpoint="scrape", source=result.source, error_code=error_code).inc()
                     result_dict = {
                         "source": result.source,
                         "success": result.success,
@@ -289,9 +304,11 @@ class UnifiedServer:
                 )
                 self.cache.set(cache_key, response)
                 self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} sources successful")
-
-                return response
-
+                etag = etag_for_response(response.dict())
+                if_none_match = request.headers.get("if-none-match")
+                if if_none_match and if_none_match == etag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                return Response(content=response.json(), media_type="application/json", headers={"ETag": etag})
             except Exception as e:
                 self.logger.error(f"Scraping failed: {e}")
                 execution_time = time.time() - start_time
@@ -304,7 +321,8 @@ class UnifiedServer:
                     successful_sources=0,
                     execution_time=execution_time
                 )
-                return response
+                etag = etag_for_response(response.dict())
+                return Response(content=response.json(), media_type="application/json", headers={"ETag": etag})
 
         # Unified Research endpoint using UnifiedResearchEngine
         @self.app.post("/api/v1/research")
@@ -322,8 +340,8 @@ class UnifiedServer:
                     user_id=payload.user_id,
                     budget_limit=payload.budget_limit
                 )
-                # In-flight de-duplication for research
                 rkey = f"research|{payload.query.lower().strip()}|{payload.strategy}|{payload.domain}|{','.join(payload.sources or [])}"
+                start_time = time.time()
                 if rkey in inflight:
                     result = await inflight[rkey]
                 else:
@@ -335,7 +353,16 @@ class UnifiedServer:
                         result = await task
                     finally:
                         inflight.pop(rkey, None)
-                return {
+                duration = time.time() - start_time
+                # Histogram pro research_duration
+                for src in (result.sources_found if hasattr(result, 'sources_found') and isinstance(result.sources_found, list) else []):
+                    research_duration.labels(src).observe(duration)
+                # Error counter pro research
+                if not result.success:
+                    error_code = str(getattr(result, 'error', 'unknown'))
+                    for src in (result.sources_found if hasattr(result, 'sources_found') and isinstance(result.sources_found, list) else ['unknown']):
+                        error_counter.labels(endpoint="research", source=src, error_code=error_code).inc()
+                response_dict = {
                     'query_id': result.query_id,
                     'success': result.success,
                     'sources_found': result.sources_found,
@@ -348,8 +375,14 @@ class UnifiedServer:
                     'timestamp': result.timestamp.isoformat(),
                     'detailed_results': result.detailed_results,
                 }
+                etag = etag_for_response(response_dict)
+                if_none_match = request.headers.get("if-none-match")
+                if if_none_match and if_none_match == etag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                return Response(content=json.dumps(response_dict), media_type="application/json", headers={"ETag": etag})
             except Exception as e:
                 self.logger.error(f"Research endpoint failed: {e}")
+                error_counter.labels(endpoint="research", source="unknown", error_code=str(e)).inc()
                 raise HTTPException(status_code=500, detail=str(e))
 
     def get_app(self) -> FastAPI:
