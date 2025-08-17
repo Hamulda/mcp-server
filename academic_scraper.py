@@ -121,7 +121,7 @@ class EnhancedRateLimiter:
             del self._consecutive_429s[source]
 
 class EnhancedSessionManager:
-    """Pokročilý session manager s retry strategií"""
+    """Pokročilý session manager s retry strategií a connection pooling"""
 
     def __init__(self):
         self.session = None
@@ -129,26 +129,14 @@ class EnhancedSessionManager:
         self._setup_session()
 
     def _setup_session(self):
-        """Nastaví session s pokročilou retry strategií"""
+        """Nastaví session s pokročilou retry strategií a optimalizovaným poolingem"""
         self.session = requests.Session()
 
         # Získej konfiguraci
         if UNIFIED_CONFIG_AVAILABLE:
             config = get_config()
-            # Pokud je v configu pro zdroj specifikováno, použij hodnoty pro tento zdroj
-            if hasattr(self, 'source_name') and self.source_name:
-                source_config = config.get_source_config(self.source_name)
-                if source_config and hasattr(source_config, 'max_retries'):
-                    max_retries = source_config.max_retries
-                else:
-                    max_retries = config.scraping.max_retries
-                if source_config and hasattr(source_config, 'retry_delay'):
-                    retry_delay = source_config.retry_delay
-                else:
-                    retry_delay = config.scraping.retry_delay
-            else:
-                max_retries = config.scraping.max_retries
-                retry_delay = config.scraping.retry_delay
+            max_retries = config.scraping.max_retries
+            retry_delay = config.scraping.retry_delay
             user_agents = config.scraping.user_agents
             timeout = config.scraping.request_timeout
         else:
@@ -158,7 +146,7 @@ class EnhancedSessionManager:
             user_agents = ['Mozilla/5.0 (compatible; AcademicBot/1.0)']
             timeout = 30
 
-        # Pokročilá retry strategie
+        # Pokročilá retry strategie s exponential backoff
         retry_strategy = Retry(
             total=max_retries,
             read=max_retries,
@@ -166,26 +154,29 @@ class EnhancedSessionManager:
             backoff_factor=retry_delay,
             status_forcelist=[429, 500, 502, 503, 504, 520, 521, 522, 523, 524],
             allowed_methods=["HEAD", "GET", "OPTIONS"],
-            raise_on_status=False  # Necháme si handling na nás
+            raise_on_status=False
         )
 
+        # Optimalizované connection pooling
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=20
+            pool_connections=20,  # Zvýšeno z 10 na 20
+            pool_maxsize=50       # Zvýšeno z 20 na 50
         )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        # Default headers s rotací user agents
+        # Optimalizované headers s kompresí
         self.session.headers.update({
             'User-Agent': random.choice(user_agents),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Encoding': 'gzip, deflate, br',  # Přidána brotli komprese
             'DNT': '1',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            'Pragma': 'no-cache'
         })
 
         self.default_timeout = timeout
@@ -504,11 +495,16 @@ class OpenAlexScraper(BaseScraper):
                 results = data.get('results', [])
                 works = []
                 for item in results:
+                    # Bezpečné získání URL s kontrolou None hodnot
+                    primary_location = item.get('primary_location') or {}
+                    source = primary_location.get('source') or {}
+                    url = source.get('url', '') if isinstance(source, dict) else ''
+
                     work = {
                         'id': item.get('id', ''),
                         'title': item.get('title', ''),
                         'doi': item.get('doi', ''),
-                        'url': item.get('primary_location', {}).get('source', {}).get('url', ''),
+                        'url': url,
                         'publication_year': item.get('publication_year', ''),
                         'type': item.get('type', '')
                     }
@@ -526,7 +522,7 @@ class OpenAlexScraper(BaseScraper):
             return self._create_result(query, False, error=error_msg, response_time=response_time)
 
 class ScrapingOrchestrator:
-    """Hlavní orchestrátor pro koordinaci všech scraperů"""
+    """Hlavní orchestrátor pro koordinaci všech scraperů s pokročilou optimalizací"""
 
     def __init__(self):
         self.scrapers = {
@@ -535,9 +531,10 @@ class ScrapingOrchestrator:
             'openalex': OpenAlexScraper()
         }
         self.logger = logging.getLogger(__name__)
+        self._semaphore = asyncio.Semaphore(10)  # Limit concurrent requests
 
     async def scrape_all_sources(self, query: str, sources: Optional[List[str]] = None) -> List[ScrapingResult]:
-        """Scrape všechny zdroje asynchronně"""
+        """Scrape všechny zdroje asynchronně s optimalizovaným batchingem"""
         if sources is None:
             sources = list(self.scrapers.keys())
 
@@ -547,15 +544,25 @@ class ScrapingOrchestrator:
             self.logger.warning(f"No available sources from requested: {sources}")
             return []
 
-        # Async scraping všech zdrojů
-        tasks = []
-        for source in available_sources:
-            scraper = self.scrapers[source]
-            task = scraper.scrape(query)
-            tasks.append(task)
+        # Batch scraping s rate limiting semaphorem
+        async def scrape_with_semaphore(source: str):
+            async with self._semaphore:
+                scraper = self.scrapers[source]
+                return await scraper.scrape(query)
 
-        # Wait for all results
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Create tasks for parallel execution
+        tasks = [scrape_with_semaphore(source) for source in available_sources]
+
+        # Execute with timeout and error handling
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=60  # 60 second timeout for all scraping
+            )
+        except asyncio.TimeoutError:
+            self.logger.error(f"Scraping timeout for query: {query}")
+            # Return partial results with timeout errors
+            results = [Exception("Timeout") for _ in available_sources]
 
         # Process results and handle exceptions
         processed_results = []
@@ -576,16 +583,64 @@ class ScrapingOrchestrator:
 
         return processed_results
 
-    async def cleanup(self):
-        """Cleanup resources"""
-        session_manager = get_session_manager()
-        session_manager.close()
+    async def batch_scrape_queries(self, queries: List[str], sources: Optional[List[str]] = None) -> Dict[str, List[ScrapingResult]]:
+        """Batch scraping pro více queries najednou"""
+        self.logger.info(f"Batch scraping {len(queries)} queries")
+
+        # Create tasks for all query-source combinations
+        tasks = []
+        query_map = {}
+
+        for query in queries:
+            task = self.scrape_all_sources(query, sources)
+            tasks.append(task)
+            query_map[len(tasks) - 1] = query
+
+        # Execute batch with controlled concurrency
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        batch_results = {}
+        for i, result in enumerate(results):
+            query = query_map[i]
+            if isinstance(result, Exception):
+                batch_results[query] = [ScrapingResult(
+                    source="batch_error",
+                    query=query,
+                    success=False,
+                    data={},
+                    error=str(result)
+                )]
+            else:
+                batch_results[query] = result
+
+        return batch_results
+
+async def cleanup():
+    """Cleanup resources"""
+    session_manager = get_session_manager()
+    session_manager.close()
 
 def create_scraping_orchestrator() -> ScrapingOrchestrator:
     """Factory function pro vytvoření orchestratoru"""
     return ScrapingOrchestrator()
 
-# Backward compatibility funkce
+class ScrapingService:
+    """Hlavní třída pro scrapovací služby"""
+
+    def __init__(self):
+        self.orchestrator = create_scraping_orchestrator()
+
+    async def scrape(self, query: str, sources: List[str] = None) -> Dict[str, Any]:
+        """Hlavní metoda pro spuštění scrapingu"""
+        result = await self.orchestrator.scrape_all_sources(query, sources)
+        return {"results": [r.__dict__ if hasattr(r, '__dict__') else vars(r) for r in result]}
+
+    async def batch_scrape(self, queries: List[str], sources: List[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+        """Batch scraping pro více dotazů"""
+        results = await self.orchestrator.batch_scrape_queries(queries, sources)
+        return {query: [r.__dict__ for r in result] for query, result in results.items()}
+
 async def scrape_academic_sources(query: str, sources: List[str] = None) -> Dict[str, Any]:
     """Backward compatibility wrapper using the current orchestrator"""
     orchestrator = create_scraping_orchestrator()

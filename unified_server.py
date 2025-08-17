@@ -22,6 +22,17 @@ from fastapi import Response
 from cache_manager import CacheManager
 from typing import Optional
 
+# Helper functions
+def etag_for_response(data: Any) -> str:
+    """Generate ETag for response data"""
+    if isinstance(data, dict):
+        content = json.dumps(data, sort_keys=True)
+    elif hasattr(data, 'dict'):
+        content = json.dumps(data.dict(), sort_keys=True)
+    else:
+        content = str(data)
+    return hashlib.md5(content.encode()).hexdigest()
+
 # Import unified components
 try:
     from unified_config import get_config
@@ -304,11 +315,11 @@ class UnifiedServer:
                 )
                 self.cache.set(cache_key, response)
                 self.logger.info(f"Scraping completed: {len(successful_results)}/{len(results)} sources successful")
-                etag = etag_for_response(response.dict())
+                etag = etag_for_response(response.model_dump())
                 if_none_match = request.headers.get("if-none-match")
                 if if_none_match and if_none_match == etag:
                     return Response(status_code=304, headers={"ETag": etag})
-                return Response(content=response.json(), media_type="application/json", headers={"ETag": etag})
+                return Response(content=response.model_dump_json(), media_type="application/json", headers={"ETag": etag})
             except Exception as e:
                 self.logger.error(f"Scraping failed: {e}")
                 execution_time = time.time() - start_time
@@ -321,8 +332,8 @@ class UnifiedServer:
                     successful_sources=0,
                     execution_time=execution_time
                 )
-                etag = etag_for_response(response.dict())
-                return Response(content=response.json(), media_type="application/json", headers={"ETag": etag})
+                etag = etag_for_response(response.model_dump())
+                return Response(content=response.model_dump_json(), media_type="application/json", headers={"ETag": etag})
 
         # Unified Research endpoint using UnifiedResearchEngine
         @self.app.post("/api/v1/research")

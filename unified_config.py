@@ -101,203 +101,140 @@ class LoggingConfig:
 
 @dataclass
 class APIConfig:
-    """API server konfigurace"""
+    """API server konfigurace s optimalizacemi"""
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
     cors_enabled: bool = True
+    worker_count: int = 1
+    max_requests_per_worker: int = 1000
+    keep_alive: int = 2
+    timeout: int = 30
+    # Nové optimalizace
+    gzip_compression: bool = True
     rate_limit_enabled: bool = True
-    rate_limit_per_minute: int = 100
-    request_timeout: int = 300
+    prometheus_enabled: bool = True
+    request_id_header: str = "X-Request-ID"
 
+@dataclass
+class PerformanceConfig:
+    """Performance tuning konfigurace"""
+    # Async optimalizace
+    max_concurrent_requests: int = 100
+    request_timeout: int = 30
+    connection_pool_size: int = 20
+    max_keepalive_connections: int = 100
+
+    # Memory optimalizace
+    memory_limit_mb: int = 512
+    gc_threshold: int = 1000
+
+    # Disk I/O optimalizace
+    use_async_io: bool = True
+    buffer_size: int = 8192
+
+    # Network optimalizace
+    tcp_nodelay: bool = True
+    socket_keepalive: bool = True
+    compression_enabled: bool = True
+
+@dataclass
 class UnifiedConfig:
-    """Sjednocená konfigurace s ENV support a validací"""
-    
-    def __init__(self, environment: Environment = None):
-        self.environment = environment or self._detect_environment()
-        self.base_dir = Path(__file__).parent
-        self.data_dir = self.base_dir / "data"
-        
-        # Initialize configurations
-        self.database = self._init_database_config()
-        self.scraping = self._init_scraping_config()
-        self.cache = self._init_cache_config()
-        self.logging = self._init_logging_config()
-        self.api = self._init_api_config()
-        self.sources = self._init_sources_config()
-        self.cost = self._init_cost_config()
-        
-        # Create directories
-        self._ensure_directories()
-    
-    def _detect_environment(self) -> Environment:
-        """Automatická detekce prostředí"""
-        env_name = os.getenv('ENVIRONMENT', 'development').lower()
-        if os.getenv('WEBSITE_SITE_NAME'):  # Azure App Service
-            return Environment.PRODUCTION
-        elif env_name == 'testing':
-            return Environment.TESTING
-        else:
-            return Environment.DEVELOPMENT
-    
-    def _init_database_config(self) -> DatabaseConfig:
-        """Inicializace databázové konfigurace z ENV"""
+    """Sjednocená konfigurace s pokročilými optimalizacemi"""
+    environment: Environment
+    database: DatabaseConfig
+    scraping: ScrapingConfig
+    sources: Dict[str, SourceConfig]
+    ai: AIConfig
+    cache: CacheConfig
+    cost: CostConfig
+    logging: LoggingConfig
+    api: APIConfig
+    performance: PerformanceConfig
+
+    def __post_init__(self):
+        """Post-initialization optimalizace pro různá prostředí"""
         if self.environment == Environment.PRODUCTION:
-            # Azure Cosmos DB nebo jiná produkční DB
-            return DatabaseConfig(
-                type=os.getenv('DB_TYPE', 'cosmos'),
-                url=os.getenv('DATABASE_URL'),
-                connection_pool_size=int(os.getenv('DB_POOL_SIZE', '20')),
-                timeout=int(os.getenv('DB_TIMEOUT', '60'))
-            )
-        else:
-            # Lokální SQLite
-            return DatabaseConfig(
-                type='sqlite',
-                url=str(self.data_dir / "research.db"),
-                connection_pool_size=5,
-                timeout=30
-            )
-    
-    def _init_scraping_config(self) -> ScrapingConfig:
-        """Inicializace scraping konfigurace z ENV"""
-        return ScrapingConfig(
-            request_timeout=int(os.getenv('SCRAPING_TIMEOUT', '30')),
-            max_retries=int(os.getenv('SCRAPING_MAX_RETRIES', '3')),
-            retry_delay=float(os.getenv('SCRAPING_RETRY_DELAY', '1.0')),
-            concurrent_requests=int(os.getenv('SCRAPING_CONCURRENT', '5'))
-        )
-    
-    def _init_cache_config(self) -> CacheConfig:
-        """Inicializace cache konfigurace"""
-        cache_dir = self.data_dir / "cache" if self.environment != Environment.PRODUCTION else None
-        return CacheConfig(
-            enabled=os.getenv('CACHE_ENABLED', 'true').lower() == 'true',
-            ttl_seconds=int(os.getenv('CACHE_TTL', '3600')),
-            max_size=int(os.getenv('CACHE_MAX_SIZE', '1000')),
-            persist_to_disk=self.environment != Environment.PRODUCTION,
-            cache_dir=cache_dir
-        )
-    
-    def _init_logging_config(self) -> LoggingConfig:
-        """Inicializace logging konfigurace"""
-        level = "DEBUG" if self.environment == Environment.DEVELOPMENT else "INFO"
-        file_path = self.data_dir / "app.log" if self.environment != Environment.PRODUCTION else None
-        
-        return LoggingConfig(
-            level=os.getenv('LOG_LEVEL', level),
-            file_path=file_path
-        )
-    
-    def _init_api_config(self) -> APIConfig:
-        """Inicializace API konfigurace"""
-        return APIConfig(
-            host=os.getenv('API_HOST', '0.0.0.0'),
-            port=int(os.getenv('PORT', '8000')),  # Azure uses PORT env var
-            debug=self.environment == Environment.DEVELOPMENT,
-            cors_enabled=os.getenv('CORS_ENABLED', 'true').lower() == 'true',
-            rate_limit_enabled=self.environment == Environment.PRODUCTION,
-            rate_limit_per_minute=int(os.getenv('RATE_LIMIT_PER_MINUTE', '100'))
-        )
-    
-    def _init_cost_config(self) -> CostConfig:
-        """Inicializace cost konfigurace"""
-        return CostConfig(
-            enabled=os.getenv('COST_ENABLED', 'true').lower() == 'true',
-            daily_limit=float(os.getenv('DAILY_COST_LIMIT', '2.0')),
-            monthly_target=float(os.getenv('MONTHLY_COST_TARGET', '50.0')),
-            token_price_per_1k=float(os.getenv('TOKEN_PRICE_PER_1K', '0.00025'))
-        )
-    
-    def _init_sources_config(self) -> Dict[str, SourceConfig]:
-        """Inicializace konfigurace zdrojů"""
-        return {
-            'wikipedia': SourceConfig(
-                name='Wikipedia',
-                base_url='https://en.wikipedia.org',
-                rate_limit_delay=0.5,
-                parser_config={
-                    'content_selector': '#mw-content-text',
-                    'title_selector': 'h1.firstHeading',
-                    'summary_selector': '.mw-parser-output > p:first-of-type'
-                }
-            ),
-            'openalex': SourceConfig(
-                name='OpenAlex',
-                base_url='https://api.openalex.org',
-                rate_limit_delay=0.1,
-                custom_headers={'User-Agent': 'Research-Tool (mailto:research@example.com)'},
-                parser_config={
-                    'works_endpoint': '/works',
-                    'authors_endpoint': '/authors'
-                }
-            ),
-            'semantic_scholar': SourceConfig(
-                name='Semantic Scholar',
-                base_url='https://api.semanticscholar.org',
-                api_key_env='SEMANTIC_SCHOLAR_API_KEY',
-                rate_limit_delay=1.0,
-                parser_config={
-                    'search_endpoint': '/graph/v1/paper/search'
-                }
-            ),
-            'pubmed': SourceConfig(
-                name='PubMed',
-                base_url='https://eutils.ncbi.nlm.nih.gov',
-                rate_limit_delay=0.3,
-                parser_config={
-                    'search_endpoint': '/entrez/eutils/esearch.fcgi',
-                    'fetch_endpoint': '/entrez/eutils/efetch.fcgi'
-                }
-            )
-        }
-    
-    def _ensure_directories(self):
-        """Vytvoří potřebné adresáře"""
-        if self.environment != Environment.PRODUCTION:
-            for dir_path in [self.data_dir, self.cache.cache_dir]:
-                if dir_path:
-                    dir_path.mkdir(exist_ok=True)
-    
+            # Produkční optimalizace
+            self.api.debug = False
+            self.api.worker_count = max(2, os.cpu_count())
+            self.performance.max_concurrent_requests = 200
+            self.cache.ttl_seconds = 7200  # 2 hodiny
+            self.cache.max_size = 5000
+            self.logging.level = "INFO"
+
+        elif self.environment == Environment.DEVELOPMENT:
+            # Development optimalizace
+            self.api.debug = True
+            self.api.worker_count = 1
+            self.performance.max_concurrent_requests = 50
+            self.cache.ttl_seconds = 600  # 10 minut
+            self.cache.max_size = 100
+            self.logging.level = "DEBUG"
+
+        elif self.environment == Environment.TESTING:
+            # Testing optimalizace
+            self.api.debug = False
+            self.api.worker_count = 1
+            self.performance.max_concurrent_requests = 10
+            self.cache.enabled = False  # Disable cache in tests
+            self.logging.level = "WARNING"
+
     def get_source_config(self, source_name: str) -> Optional[SourceConfig]:
-        """Vrátí konfiguraci pro daný zdroj"""
+        """Získá konfiguraci pro konkrétní zdroj"""
         return self.sources.get(source_name)
-    
-    def is_source_enabled(self, source_name: str) -> bool:
-        """Zkontroluje, zda je zdroj povolený"""
-        config = self.get_source_config(source_name)
-        return config.enabled if config else False
-    
+
+    def get_enabled_sources(self) -> List[str]:
+        """Vrátí seznam povolených zdrojů"""
+        return [name for name, config in self.sources.items() if config.enabled]
+
+    def get_sources_by_priority(self) -> List[str]:
+        """Vrátí zdroje seřazené podle rychlosti/priority"""
+        # Priorita podle rychlosti: Wikipedia > OpenAlex > PubMed
+        priority_order = ['wikipedia', 'openalex', 'pubmed']
+        enabled_sources = self.get_enabled_sources()
+
+        # Seřaď podle priority, pak zbytek alfabeticky
+        sorted_sources = []
+        for source in priority_order:
+            if source in enabled_sources:
+                sorted_sources.append(source)
+                enabled_sources.remove(source)
+
+        sorted_sources.extend(sorted(enabled_sources))
+        return sorted_sources
+
     def validate(self) -> List[str]:
         """Validuje konfiguraci a vrátí seznam chyb/varování"""
         errors = []
         
-        # Validate database config
-        if self.database.type == 'cosmos' and not self.database.url:
-            errors.append("Cosmos DB URL is required for production")
-        
-        # Validate API keys for external services
-        for source_name, source_config in self.sources.items():
-            if source_config.api_key_env:
-                api_key = os.getenv(source_config.api_key_env)
-                if not api_key and source_config.enabled:
-                    errors.append(f"Missing API key for {source_name}: {source_config.api_key_env}")
-        
-        # Validate directories in non-production
-        if self.environment != Environment.PRODUCTION:
-            if not self.data_dir.exists():
-                try:
-                    self.data_dir.mkdir(parents=True, exist_ok=True)
-                except Exception as e:
-                    errors.append(f"Cannot create data directory {self.data_dir}: {e}")
-        
-        # Validate performance settings
-        if self.scraping.concurrent_requests > 10:
-            errors.append("Warning: High concurrent requests may cause rate limiting")
-        
-        if self.scraping.request_timeout < 5:
-            errors.append("Warning: Very low request timeout may cause failures")
-        
+        # Validace API konfigurace
+        if self.api.port < 1 or self.api.port > 65535:
+            errors.append(f"Invalid API port: {self.api.port}")
+
+        # Validace cache konfigurace
+        if self.cache.max_size < 1:
+            errors.append("Cache max_size must be positive")
+
+        # Validace zdrojů
+        if not self.sources:
+            errors.append("No sources configured")
+
+        enabled_sources = self.get_enabled_sources()
+        if not enabled_sources:
+            errors.append("No sources enabled")
+
+        # Validace performance nastavení
+        if self.performance.max_concurrent_requests < 1:
+            errors.append("max_concurrent_requests must be positive")
+
+        # Varování pro produkci
+        if self.environment == Environment.PRODUCTION:
+            if self.api.debug:
+                errors.append("DEBUG mode should be disabled in production")
+            if not self.api.rate_limit_enabled:
+                errors.append("Rate limiting should be enabled in production")
+
         return errors
     
     def get_database_url(self) -> str:
@@ -369,9 +306,54 @@ def get_config() -> UnifiedConfig:
     if _config_instance is None:
         with _config_lock:
             if _config_instance is None:
-                _config_instance = UnifiedConfig()
-    
+                _config_instance = _create_default_config()
+
     return _config_instance
+
+def _create_default_config() -> UnifiedConfig:
+    """Vytvoří výchozí konfiguraci s rozumnými defaulty"""
+
+    # Detect environment from ENV variable
+    env_name = os.getenv('ENVIRONMENT', 'development').lower()
+    try:
+        environment = Environment(env_name)
+    except ValueError:
+        environment = Environment.DEVELOPMENT
+
+    # Default sources configuration
+    default_sources = {
+        'wikipedia': SourceConfig(
+            name='wikipedia',
+            base_url='https://en.wikipedia.org/w/api.php',
+            rate_limit_delay=0.5,
+            enabled=True
+        ),
+        'pubmed': SourceConfig(
+            name='pubmed',
+            base_url='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
+            rate_limit_delay=0.3,
+            enabled=True
+        ),
+        'openalex': SourceConfig(
+            name='openalex',
+            base_url='https://api.openalex.org/',
+            rate_limit_delay=0.1,
+            enabled=True
+        )
+    }
+
+    return UnifiedConfig(
+        environment=environment,
+        database=DatabaseConfig(),
+        scraping=ScrapingConfig(),
+        sources=default_sources,
+        ai=AIConfig(),
+        cache=CacheConfig(),
+        cost=CostConfig(),
+        logging=LoggingConfig(),
+        api=APIConfig(),
+        performance=PerformanceConfig()
+    )
 
 def create_config(environment: Environment = None) -> UnifiedConfig:
     """Factory function pro vytvoření nové konfigurace"""
