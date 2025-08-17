@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "publisher": "MojeJmeno",
   "description": "Systém vedený manažerským agentem, který má k dispozici tým specialistů a sadu vlastních nástrojů.",
-  "base_url": "http://localhost:8001",
+  "base_url": "https://mcp-server-uzkg.onrender.com",
   "tools": {
     "delegate_task": {
       "path": "/delegate_task",
