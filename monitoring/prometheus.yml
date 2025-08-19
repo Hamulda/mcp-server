@@ -1,25 +1,9 @@
 global:
   scrape_interval: 15s
-  evaluation_interval: 15s
-
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
 
 scrape_configs:
-  # Research Tool aplikace
-  - job_name: 'research-tool'
+  - job_name: 'academic-research-api'
     static_configs:
-      - targets: ['research-tool:8000']
-    metrics_path: /metrics
+      - targets: ['academic-research-api:8000']  # Ponechávám 8000 protože to je interní port v kontejneru
+    metrics_path: '/metrics'
     scrape_interval: 30s
-
-  # Prometheus samo o sobě
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  # Node Exporter pro systémové metriky
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']

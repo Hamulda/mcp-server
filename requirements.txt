@@ -1,50 +1,15 @@
-# Unified Requirements - M1 MacBook Optimized Biohacking Research Tool
-# Konsolidované závislosti pro všechny funkce
-
-# Core Framework
 fastapi>=0.110.0
 uvicorn[standard]>=0.22.0
-pydantic>=2.10.4,<3
-
-# HTTP & Web Scraping (M1 optimized)
-aiohttp==3.9.5
-requests==2.31.0
-beautifulsoup4>=4.12,<5
+pydantic>=2.5.0
+aiohttp>=3.9.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
 httpx>=0.24.0
-
-# Academic & Research Sources
-scholarly==1.7.11
-
-# AI & Machine Learning (Local M1 support)
+slowapi>=0.1.8
+prometheus-client>=0.16.0
+scholarly>=1.7.11
 numpy>=1.24.0
-ollama>=0.1.7
-
-# Data Processing & Storage
-pandas>=2.0.0
-# sqlite3 is built-in with Python
-
-# Caching & Performance
-cachetools>=5.3.0
 psutil>=5.9.0
-
-# Configuration & Environment
-python-dotenv==1.0.0
-pyyaml>=6.0
-
-# Rate Limiting & API Management
-slowapi>=0.1.5
-tenacity>=8.2.0
-
-# Async Support
-# asyncio is built-in with Python 3.7+
-
-# CLI & User Interface
-click>=8.1.0
-rich>=13.0.0
-typer>=0.9.0
-
-# Monitoring & Logging
-prometheus-client>=0.15.0
-
-# Data Validation & Serialization
-marshmallow>=3.19.0
+asyncio-throttle>=1.0.2
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

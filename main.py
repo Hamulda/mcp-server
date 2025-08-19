@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Unified Main Entry Point - Sjednocený vstupní bod pro Advanced Biohacking Research Tool
-Integruje všechny funkce: lokální AI, peptidový výzkum, M1 optimalizace a pokročilé analýzy
-Senior IT specialist optimalizovaná verze - vše v jednom
+Unified Main Entry Point - Vyčištěný a optimalizovaný vstupní bod
+Zjednodušené importy, robustní error handling, M1 optimalizované
 """
 
 import asyncio
@@ -15,28 +14,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-# Unified imports with intelligent fallbacks
+# Simplified unified imports with better error handling
 try:
-    from intelligent_research_orchestrator import IntelligentResearchOrchestrator, UserProfile
-    from biohacking_research_engine import BiohackingResearchEngine, BiohackingResearchRequest
-    from advanced_source_aggregator import AdvancedSourceAggregator
-    from quality_assessment_system import QualityAssessmentSystem
-    from local_ai_adapter import M1OptimizedOllamaClient, quick_ai_query
-    from unified_config import get_config, Environment
-    from peptide_prompts import PEPTIDE_RESEARCH_PROMPTS, BIOHACKING_PROMPTS
-    ADVANCED_COMPONENTS_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Advanced components not available: {e}")
-    ADVANCED_COMPONENTS_AVAILABLE = False
-
-# Fallback imports for basic functionality
-try:
+    from unified_config import get_config
+    from unified_cache_system import get_cache_manager
     from academic_scraper import create_scraping_orchestrator
-    from cache_manager import get_cache_manager
-    BASIC_COMPONENTS_AVAILABLE = True
+    CORE_COMPONENTS_AVAILABLE = True
+    print("✅ Core components loaded successfully")
 except ImportError as e:
-    print(f"⚠️ Basic components not available: {e}")
-    BASIC_COMPONENTS_AVAILABLE = False
+    print(f"❌ Critical error loading core components: {e}")
+    CORE_COMPONENTS_AVAILABLE = False
+    sys.exit(1)
+
+# Optional advanced components
+try:
+    from local_ai_adapter import M1OptimizedOllamaClient
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    print("⚠️ AI components not available")
 
 # Setup enhanced logging
 def setup_logging(verbose: bool = False) -> None:
@@ -84,21 +80,18 @@ class UnifiedBiohackingResearchTool:
     async def __aenter__(self):
         """Async context manager entry with intelligent component initialization"""
         try:
-            if ADVANCED_COMPONENTS_AVAILABLE:
+            if AI_AVAILABLE:
                 # Initialize advanced orchestrator
+                from intelligent_research_orchestrator import IntelligentResearchOrchestrator
                 self.orchestrator = IntelligentResearchOrchestrator()
                 await self.orchestrator.__aenter__()
-
-                # Initialize quality assessment
-                self.quality_system = QualityAssessmentSystem()
-                await self.quality_system.__aenter__()
 
                 logger.info("✅ Advanced components initialized")
             else:
                 logger.warning("⚠️ Running in basic mode - advanced features disabled")
 
             # Initialize cache (always try to enable)
-            if BASIC_COMPONENTS_AVAILABLE:
+            if CORE_COMPONENTS_AVAILABLE:
                 self.cache_manager = get_cache_manager()
 
         except Exception as e:
@@ -110,8 +103,6 @@ class UnifiedBiohackingResearchTool:
         """Cleanup all components"""
         if self.orchestrator:
             await self.orchestrator.__aexit__(exc_type, exc_val, exc_tb)
-        if self.quality_system:
-            await self.quality_system.__aexit__(exc_type, exc_val, exc_tb)
 
     async def research(
         self,
@@ -144,13 +135,6 @@ class UnifiedBiohackingResearchTool:
                 )
             else:
                 result = await self._basic_research(query, research_type)
-
-            # Add quality assessment if available
-            if self.quality_system and "research_data" in result:
-                quality_assessment = await self.quality_system.assess_research_quality(
-                    result["research_data"], query
-                )
-                result["quality_assessment"] = quality_assessment
 
             # Format output
             formatted_result = self._format_output(result, output_format)
@@ -206,7 +190,7 @@ class UnifiedBiohackingResearchTool:
     async def _basic_research(self, query: str, research_type: str) -> Dict[str, Any]:
         """Basic research using simple scraping"""
 
-        if not BASIC_COMPONENTS_AVAILABLE:
+        if not CORE_COMPONENTS_AVAILABLE:
             return {
                 "error": "No research components available",
                 "suggestion": "Please install required dependencies"
@@ -296,8 +280,8 @@ class UnifiedBiohackingResearchTool:
             },
             "performance_analysis": self.performance_stats,
             "system_capabilities": {
-                "advanced_components": ADVANCED_COMPONENTS_AVAILABLE,
-                "basic_components": BASIC_COMPONENTS_AVAILABLE
+                "advanced_components": AI_AVAILABLE,
+                "basic_components": CORE_COMPONENTS_AVAILABLE
             }
         }
 
@@ -345,8 +329,8 @@ class UnifiedBiohackingResearchTool:
         return {
             **self.performance_stats,
             "components_status": {
-                "advanced_available": ADVANCED_COMPONENTS_AVAILABLE,
-                "basic_available": BASIC_COMPONENTS_AVAILABLE,
+                "advanced_available": AI_AVAILABLE,
+                "basic_available": CORE_COMPONENTS_AVAILABLE,
                 "orchestrator_active": bool(self.orchestrator),
                 "quality_system_active": bool(self.quality_system)
             }

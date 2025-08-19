@@ -404,6 +404,7 @@ class PubMedScraper(BaseScraper):
             )
             response_time = time.time() - start_time
             
+            # Handle rate limiting
             if response.status_code == 429:
                 self.rate_limiter.record_429_error(self.source_name)
                 return self._create_result(
@@ -411,43 +412,54 @@ class PubMedScraper(BaseScraper):
                     response_time=response_time, status_code=429, rate_limited=True
                 )
             
+            # Handle other errors
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}: {response.reason}"
+                self.logger.error(f"PubMed API error: {error_msg}")
                 circuit_breaker.record_failure(self.source_name)
                 return self._create_result(
                     query, False, error=error_msg,
                     response_time=response_time, status_code=response.status_code
                 )
             
-            # Parse response (support JSON and XML for robustness)
+            # Parse JSON response
             try:
                 data = response.json()
-                if isinstance(data, dict):
-                    id_list = data.get('esearchresult', {}).get('idlist', [])
-                    if not isinstance(id_list, list):
-                        id_list = []
-                else:
-                    raise ValueError("Non-dict JSON")
-            except Exception:
-                # Fallback: attempt to parse XML structure
-                try:
-                    import xml.etree.ElementTree as ET
-                    xml_root = ET.fromstring(getattr(response, 'text', '') or '')
-                    id_list = []
-                    # Extract all <Id> under <IdList>
-                    for id_node in xml_root.findall('.//IdList/Id'):
-                        if id_node.text:
-                            id_list.append(id_node.text.strip())
-                except Exception:
-                    id_list = []
+            except ValueError as e:
+                self.logger.error(f"Invalid JSON response from PubMed: {e}")
+                circuit_breaker.record_failure(self.source_name)
+                return self._create_result(
+                    query, False, error="Invalid JSON response",
+                    response_time=response_time, status_code=response.status_code
+                )
 
-            papers = [{'pmid': pmid, 'url': f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"} for pmid in id_list]
+            # Extract results
+            if 'esearchresult' not in data or 'idlist' not in data['esearchresult']:
+                self.logger.warning(f"No search results in PubMed response for query: {query}")
+                return self._create_result(
+                    query, True, data={'articles': [], 'total_found': 0},
+                    response_time=response_time, status_code=response.status_code
+                )
 
+            id_list = data['esearchresult']['idlist']
+            articles = []
+
+            for pmid in id_list:
+                article = {
+                    'pmid': pmid,
+                    'title': f"PubMed Article {pmid}",
+                    'url': f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                    'source': 'PubMed'
+                }
+                articles.append(article)
+
+            # Reset rate limit counter on success
             self.rate_limiter.reset_429_count(self.source_name)
             circuit_breaker.reset(self.source_name)
+
             return self._create_result(
                 query, True,
-                data={'papers': papers, 'total_found': len(papers)},
+                data={'articles': articles, 'total_found': len(articles)},
                 response_time=response_time, status_code=response.status_code
             )
 
@@ -461,74 +473,109 @@ class PubMedScraper(BaseScraper):
             )
 
 class OpenAlexScraper(BaseScraper):
-    """Scraper pro OpenAlex API"""
+    """Optimalizovaný OpenAlex scraper"""
+
     def __init__(self):
         super().__init__("openalex")
 
     async def scrape(self, query: str) -> ScrapingResult:
+        """Scrape OpenAlex s robustním error handling"""
         start_time = time.time()
+
         try:
+            # Rate limiting
             await self.rate_limiter.wait_if_needed(self.source_name)
+
+            # Circuit breaker check
             if circuit_breaker.is_open(self.source_name):
                 return self._create_result(query, False, error="Circuit breaker open", response_time=0, status_code=503)
 
-            # OpenAlex API endpoint
-            search_url = f"https://api.openalex.org/works"
+            # Construct URL
+            search_url = "https://api.openalex.org/works"
             params = {
                 'search': query,
-                'per_page': 5
+                'per-page': 10,
+                'sort': 'relevance_score:desc'
             }
+
+            # Make request - použije asyncio.to_thread pro neblokující volání
             response = await asyncio.to_thread(
                 self.session_manager.get, search_url, params=params
             )
             response_time = time.time() - start_time
 
+            # Handle rate limiting
             if response.status_code == 429:
                 self.rate_limiter.record_429_error(self.source_name)
-                return self._create_result(query, False, error="Rate limited", response_time=response_time, status_code=429, rate_limited=True)
+                return self._create_result(
+                    query, False, error="Rate limited",
+                    response_time=response_time, status_code=429, rate_limited=True
+                )
 
+            # Handle other errors
             if response.status_code != 200:
                 error_msg = f"HTTP {response.status_code}: {response.reason}"
+                self.logger.error(f"OpenAlex API error: {error_msg}")
                 circuit_breaker.record_failure(self.source_name)
-                return self._create_result(query, False, error=error_msg, response_time=response_time, status_code=response.status_code)
+                return self._create_result(
+                    query, False, error=error_msg,
+                    response_time=response_time, status_code=response.status_code
+                )
 
+            # Parse JSON response
             try:
                 data = response.json()
-                results = data.get('results', [])
-                works = []
-                for item in results:
-                    # Bezpečné získání URL s kontrolou None hodnot
-                    primary_location = item.get('primary_location') or {}
-                    source = primary_location.get('source') or {}
-                    url = source.get('url', '') if isinstance(source, dict) else ''
-
-                    work = {
-                        'id': item.get('id', ''),
-                        'title': item.get('title', ''),
-                        'doi': item.get('doi', ''),
-                        'url': url,
-                        'publication_year': item.get('publication_year', ''),
-                        'type': item.get('type', '')
-                    }
-                    works.append(work)
-
-                self.rate_limiter.reset_429_count(self.source_name)
-                circuit_breaker.reset(self.source_name)
-                return self._create_result(query, True, data={'works': works, 'total_found': len(works)}, response_time=response_time, status_code=response.status_code)
-
             except ValueError as e:
-                return self._create_result(query, False, error="Invalid JSON response", response_time=response_time, status_code=response.status_code)
+                self.logger.error(f"Invalid JSON response from OpenAlex: {e}")
+                circuit_breaker.record_failure(self.source_name)
+                return self._create_result(
+                    query, False, error="Invalid JSON response",
+                    response_time=response_time, status_code=response.status_code
+                )
+
+            # Extract results
+            if 'results' not in data:
+                self.logger.warning(f"No search results in OpenAlex response for query: {query}")
+                return self._create_result(
+                    query, True, data={'articles': [], 'total_found': 0},
+                    response_time=response_time, status_code=response.status_code
+                )
+
+            results = data['results']
+            articles = []
+
+            for result in results:
+                article = {
+                    'title': result.get('title', ''),
+                    'doi': result.get('doi', ''),
+                    'url': result.get('doi', ''),
+                    'publication_year': result.get('publication_year', ''),
+                    'cited_by_count': result.get('cited_by_count', 0),
+                    'source': 'OpenAlex'
+                }
+                articles.append(article)
+
+            # Reset rate limit counter on success
+            self.rate_limiter.reset_429_count(self.source_name)
+            circuit_breaker.reset(self.source_name)
+
+            return self._create_result(
+                query, True,
+                data={'articles': articles, 'total_found': len(articles)},
+                response_time=response_time, status_code=response.status_code
+            )
 
         except Exception as e:
             response_time = time.time() - start_time
             error_msg = f"OpenAlex scraping failed: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             circuit_breaker.record_failure(self.source_name)
-            return self._create_result(query, False, error=error_msg, response_time=response_time)
+            return self._create_result(
+                query, False, error=error_msg, response_time=response_time
+            )
 
-# Simplified scrapers without timeout issues
 class ScrapingOrchestrator:
-    """Hlavní orchestrátor pro koordinaci všech scraperů s pokročilou optimalizací"""
+    """Hlavní orchestrátor pro koordinaci všech scraperů"""
 
     def __init__(self):
         self.scrapers = {
@@ -537,59 +584,83 @@ class ScrapingOrchestrator:
             'openalex': OpenAlexScraper()
         }
         self.logger = logging.getLogger(__name__)
-        self._semaphore = asyncio.Semaphore(10)
+
+        # Load config
+        if UNIFIED_CONFIG_AVAILABLE:
+            self.config = get_config()
+        else:
+            self.config = None
 
     async def scrape_all_sources(self, query: str, sources: Optional[List[str]] = None) -> List[ScrapingResult]:
-        """Scrape všechny zdroje asynchronně s optimalizovaným batchingem"""
+        """Scrape všechny zdroje paralelně s error handling"""
         if sources is None:
             sources = list(self.scrapers.keys())
 
-        # Filter pouze dostupné zdroje
+        # Filter only available sources
         available_sources = [s for s in sources if s in self.scrapers]
+
         if not available_sources:
-            self.logger.warning(f"No available sources from requested: {sources}")
+            self.logger.warning(f"No available sources for query: {query}")
             return []
 
-        # Batch scraping s rate limiting semaphorem
-        async def scrape_with_semaphore(source: str):
-            async with self._semaphore:
-                scraper = self.scrapers[source]
-                return await scraper.scrape(query)
+        # Run all scrapers concurrently
+        tasks = []
+        for source in available_sources:
+            scraper = self.scrapers[source]
+            task = asyncio.create_task(scraper.scrape(query))
+            tasks.append(task)
 
-        # Create tasks for parallel execution
-        tasks = [scrape_with_semaphore(source) for source in available_sources]
-
-        # Execute with timeout and error handling
-        try:
-            results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=60  # 60 second timeout for all scraping
-            )
-        except asyncio.TimeoutError:
-            self.logger.error(f"Scraping timeout for query: {query}")
-            # Return partial results with timeout errors
-            results = [Exception("Timeout") for _ in available_sources]
+        # Wait for all tasks to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results and handle exceptions
         processed_results = []
         for i, result in enumerate(results):
+            source = available_sources[i]
             if isinstance(result, Exception):
-                source = available_sources[i]
-                error_result = ScrapingResult(
+                self.logger.error(f"Scraper {source} failed with exception: {result}")
+                processed_results.append(ScrapingResult(
                     source=source,
                     query=query,
                     success=False,
                     data={},
-                    error=f"Scraping exception: {str(result)}"
-                )
-                processed_results.append(error_result)
-                self.logger.error(f"Scraping failed for {source}: {result}")
+                    error=f"Scraper exception: {str(result)}"
+                ))
             else:
                 processed_results.append(result)
 
         return processed_results
 
-# Factory function for creating orchestrator
+    async def scrape_single_source(self, query: str, source: str) -> ScrapingResult:
+        """Scrape jediný zdroj"""
+        if source not in self.scrapers:
+            return ScrapingResult(
+                source=source,
+                query=query,
+                success=False,
+                data={},
+                error=f"Source {source} not available"
+            )
+
+        scraper = self.scrapers[source]
+        return await scraper.scrape(query)
+
+# Factory function
 def create_scraping_orchestrator() -> ScrapingOrchestrator:
-    """Factory function pro vytvoření scraping orchestratoru"""
+    """Factory function pro vytvoření orchestrátoru"""
     return ScrapingOrchestrator()
+
+# Cleanup function
+def cleanup_scrapers():
+    """Cleanup all scrapers and sessions"""
+    global _session_manager
+    if _session_manager:
+        _session_manager.close()
+        _session_manager = None
+
+# Export main classes
+__all__ = [
+    'ScrapingResult', 'ScrapingOrchestrator', 'create_scraping_orchestrator',
+    'WikipediaScraper', 'PubMedScraper', 'OpenAlexScraper',
+    'cleanup_scrapers'
+]

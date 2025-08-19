@@ -199,256 +199,120 @@ class UnifiedConfig:
     def __post_init__(self):
         """Post-init setup"""
         self._setup_default_sources()
-        self._setup_cache_directory()
-        self._setup_logging()
+        self._setup_cache_dir()
 
     def _setup_default_sources(self):
-        """Nastavení defaultních zdrojů s optimalizací pro peptidy a biohacking"""
+        """Setup default source configurations"""
         default_sources = {
-            # Core academic sources
+            'wikipedia': SourceConfig(
+                name='wikipedia',
+                base_url='https://en.wikipedia.org/api/rest_v1',
+                rate_limit_delay=0.5,
+                custom_headers={'User-Agent': 'Academic Research Tool 2.1.0'},
+                enabled=True,
+                max_concurrent=3
+            ),
             'pubmed': SourceConfig(
                 name='pubmed',
-                base_url='https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
+                base_url='https://eutils.ncbi.nlm.nih.gov/entrez/eutils',
                 rate_limit_delay=0.3,
+                custom_headers={'User-Agent': 'Academic Research Tool 2.1.0'},
                 enabled=True,
-                parser_config={'search_fields': ['title', 'abstract', 'mesh_terms']}
+                max_concurrent=2
             ),
             'openalex': SourceConfig(
                 name='openalex',
-                base_url='https://api.openalex.org/',
+                base_url='https://api.openalex.org',
                 rate_limit_delay=0.1,
-                enabled=True
-            ),
-            'semantic_scholar': SourceConfig(
-                name='semantic_scholar',
-                base_url='https://api.semanticscholar.org/',
-                rate_limit_delay=1.0,
-                enabled=True
-            ),
-
-            # Peptide & Biohacking specific sources
-            'peptide_guide': SourceConfig(
-                name='peptide_guide',
-                base_url='https://peptideguide.com/',
-                rate_limit_delay=2.0,
+                custom_headers={'User-Agent': 'Academic Research Tool 2.1.0'},
                 enabled=True,
-                parser_config={'focus': 'peptides', 'extract_dosages': True}
-            ),
-            'examine_com': SourceConfig(
-                name='examine_com',
-                base_url='https://examine.com/',
-                rate_limit_delay=1.5,
-                enabled=True,
-                parser_config={'focus': 'supplements', 'evidence_based': True}
-            ),
-            'selfhacked': SourceConfig(
-                name='selfhacked',
-                base_url='https://selfhacked.com/',
-                rate_limit_delay=2.0,
-                enabled=True,
-                parser_config={'focus': 'biohacking', 'health_optimization': True}
-            ),
-            'ben_greenfield': SourceConfig(
-                name='ben_greenfield',
-                base_url='https://bengreenfieldbody.com/',
-                rate_limit_delay=3.0,
-                enabled=True,
-                parser_config={'focus': 'performance', 'biohacking': True}
-            ),
-
-            # Medical & Research databases
-            'clinicaltrials': SourceConfig(
-                name='clinicaltrials',
-                base_url='https://clinicaltrials.gov/api/',
-                rate_limit_delay=1.0,
-                enabled=True,
-                parser_config={'status': 'active', 'peptide_focus': True}
-            ),
-            'cochrane': SourceConfig(
-                name='cochrane',
-                base_url='https://www.cochranelibrary.com/api/',
-                rate_limit_delay=2.0,
-                enabled=True,
-                parser_config={'systematic_reviews': True}
-            ),
-
-            # Supplement & Nootropic databases
-            'nootropics_expert': SourceConfig(
-                name='nootropics_expert',
-                base_url='https://nootropicsexpert.com/',
-                rate_limit_delay=2.0,
-                enabled=True,
-                parser_config={'cognitive_enhancement': True}
-            ),
-            'longecity': SourceConfig(
-                name='longecity',
-                base_url='https://www.longecity.org/',
-                rate_limit_delay=3.0,
-                enabled=True,
-                parser_config={'longevity': True, 'community_research': True}
-            ),
-
-            # Core scientific sources
-            'arxiv': SourceConfig(
-                name='arxiv',
-                base_url='http://export.arxiv.org/api/',
-                rate_limit_delay=3.0,
-                enabled=True
-            ),
-            'crossref': SourceConfig(
-                name='crossref',
-                base_url='https://api.crossref.org/',
-                rate_limit_delay=1.0,
-                enabled=True
-            ),
-            'wikipedia': SourceConfig(
-                name='wikipedia',
-                base_url='https://en.wikipedia.org/api/rest_v1/',
-                rate_limit_delay=0.5,
-                enabled=True
-            ),
-
-            # Specialized health databases
-            'health_line': SourceConfig(
-                name='health_line',
-                base_url='https://www.healthline.com/',
-                rate_limit_delay=2.0,
-                enabled=True,
-                parser_config={'medical_review': True}
-            ),
-            'mayo_clinic': SourceConfig(
-                name='mayo_clinic',
-                base_url='https://www.mayoclinic.org/',
-                rate_limit_delay=2.0,
-                enabled=True,
-                parser_config={'authoritative_medical': True}
+                max_concurrent=5
             )
         }
 
-        # Merge s existujícími zdroji
+        # Merge with existing sources
         for name, config in default_sources.items():
             if name not in self.sources:
                 self.sources[name] = config
 
-    def _setup_cache_directory(self):
-        """Nastavení cache adresáře"""
+    def _setup_cache_dir(self):
+        """Setup cache directory"""
         if self.cache.cache_dir is None:
-            self.cache.cache_dir = Path.cwd() / "cache"
-        self.cache.cache_dir.mkdir(exist_ok=True)
+            project_root = Path(__file__).parent
+            self.cache.cache_dir = project_root / "cache" / "unified"
+            self.cache.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _setup_logging(self):
-        """Nastavení loggingu"""
-        import logging
+    def validate(self) -> bool:
+        """Validate configuration"""
+        try:
+            # Basic validation
+            if not self.sources:
+                return False
 
-        level = getattr(logging, self.logging.level.upper(), logging.INFO)
-        logging.basicConfig(
-            level=level,
-            format=self.logging.format
-        )
+            # Check cache directory
+            if self.cache.enabled and self.cache.cache_dir:
+                self.cache.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_source_config(self, source_name: str) -> Optional[SourceConfig]:
-        """Získá konfiguraci pro zdroj"""
-        return self.sources.get(source_name)
-
-    def validate(self) -> List[str]:
-        """Validace konfigurace, vrací seznam chyb"""
-        errors = []
-
-        # Validace portů
-        if not (1 <= self.api.port <= 65535):
-            errors.append(f"Invalid API port: {self.api.port}")
-
-        # Validace cache
-        if self.cache.ttl_seconds <= 0:
-            errors.append("Cache TTL must be positive")
-
-        # Validace AI konfigurace
-        if self.ai.use_local_ai and not self.ai.local_ai.ollama_host:
-            errors.append("Local AI enabled but no Ollama host specified")
-
-        return errors
+            return True
+        except Exception:
+            return False
 
     def to_dict(self) -> Dict[str, Any]:
         """Export do dictionary pro serialization"""
         from dataclasses import asdict
         return asdict(self)
 
-# Global config instance s thread safety
+# Global config instance with thread safety
+_config_instance: Optional[UnifiedConfig] = None
 _config_lock = threading.Lock()
-_global_config: Optional[UnifiedConfig] = None
-
-def create_config(environment: Environment = Environment.DEVELOPMENT) -> UnifiedConfig:
-    """Vytvoří novou konfiguraci"""
-    config = UnifiedConfig(environment=environment)
-
-    # Load from environment variables
-    _load_from_env(config)
-
-    return config
 
 def get_config() -> UnifiedConfig:
-    """Získá globální konfiguraci (thread-safe singleton)"""
-    global _global_config
+    """Thread-safe singleton factory for unified configuration"""
+    global _config_instance
 
-    if _global_config is None:
+    if _config_instance is None:
         with _config_lock:
-            if _global_config is None:
-                _global_config = create_config()
+            if _config_instance is None:
+                _config_instance = UnifiedConfig()
 
-    return _global_config
+                # Load environment overrides
+                if os.getenv('ENVIRONMENT'):
+                    try:
+                        _config_instance.environment = Environment(os.getenv('ENVIRONMENT'))
+                    except ValueError:
+                        pass
 
-def _load_from_env(config: UnifiedConfig):
-    """Načte konfiguraci z environment variables"""
-    import os
+                # API configuration from environment
+                if os.getenv('API_HOST'):
+                    _config_instance.api.host = os.getenv('API_HOST')
+                if os.getenv('API_PORT'):
+                    try:
+                        _config_instance.api.port = int(os.getenv('API_PORT'))
+                    except ValueError:
+                        pass
 
-    # Database konfigurace
-    if os.getenv('DATABASE_URL'):
-        config.database.url = os.getenv('DATABASE_URL')
+                # Validate configuration
+                if not _config_instance.validate():
+                    raise RuntimeError("Configuration validation failed")
 
-    # API konfigurace
-    if os.getenv('API_PORT'):
-        try:
-            config.api.port = int(os.getenv('API_PORT'))
-        except ValueError:
-            pass
-
-    if os.getenv('API_HOST'):
-        config.api.host = os.getenv('API_HOST')
-
-    # AI konfigurace
-    if os.getenv('OLLAMA_HOST'):
-        config.ai.local_ai.ollama_host = os.getenv('OLLAMA_HOST')
-
-    if os.getenv('GEMINI_API_KEY'):
-        config.ai.gemini_api_key = os.getenv('GEMINI_API_KEY')
-
-    if os.getenv('OPENAI_API_KEY'):
-        config.ai.openai_api_key = os.getenv('OPENAI_API_KEY')
-
-    # Environment
-    if os.getenv('ENVIRONMENT'):
-        env_value = os.getenv('ENVIRONMENT').lower()
-        if env_value in ['development', 'testing', 'production']:
-            config.environment = Environment(env_value)
-
-    # Logging
-    if os.getenv('LOG_LEVEL'):
-        config.logging.level = os.getenv('LOG_LEVEL').upper()
-
-    # Cache konfigurace
-    if os.getenv('CACHE_DIR'):
-        config.cache.cache_dir = Path(os.getenv('CACHE_DIR'))
-
-    # Security
-    if os.getenv('API_KEY'):
-        config.security.api_key = os.getenv('API_KEY')
-        config.security.api_key_required = True
+    return _config_instance
 
 def reset_config():
-    """Reset globální konfigurace (pro testing)"""
-    global _global_config
+    """Reset global configuration instance (for testing)"""
+    global _config_instance
     with _config_lock:
-        _global_config = None
+        _config_instance = None
+
+# Convenience functions
+def get_source_config(source_name: str) -> Optional[SourceConfig]:
+    """Get configuration for specific source"""
+    config = get_config()
+    return config.sources.get(source_name)
+
+def is_source_enabled(source_name: str) -> bool:
+    """Check if source is enabled"""
+    source_config = get_source_config(source_name)
+    return source_config.enabled if source_config else False
 
 # Export hlavních objektů
 __all__ = [

@@ -1,64 +1,47 @@
-version: '3.8'
-
 services:
-  research-tool:
-    build: .
-    container_name: research-tool
+  academic-research-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
-      - ENVIRONMENT=production
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DATABASE_PATH=/app/data/research.db
-      - ENABLE_COST_TRACKING=true
-      - DAILY_COST_LIMIT=50.0
-      - LOCAL_MODE=false
-      - AGGRESSIVE_CACHING=true
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+      - CORS_ORIGINS=*
     volumes:
-      - ./data:/app/data
-      - ./reports:/app/reports
       - ./cache:/app/cache
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/health | grep -q healthy"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: prometheus
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      - research-tool
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
-    container_name: grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    restart: unless-stopped
     depends_on:
       - prometheus
-    restart: unless-stopped
-
-  # Optional: Node exporter for host metrics (may require adjustments on Mac/Windows)
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
-    restart: unless-stopped
-
-volumes:
-  research-data:
