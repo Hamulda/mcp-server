@@ -1,4 +1,3 @@
-"""
 Unified FastAPI Server - Čistý a funkční server pro Academic Research Tool
 """
 

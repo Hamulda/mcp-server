@@ -1,23 +1,23 @@
+M1 Optimized Cache Manager - Maximálně efektivní caching pro MacBook Air M1
+Prioritizuje nízkou spotřebu paměti a rychlý přístup
+"""
+
 import time
 import threading
 import hashlib
 import json
+import gc
+import psutil
 from typing import Any, Optional, Dict, List
 from collections import OrderedDict
 import pickle
 import os
 from pathlib import Path
 
-try:
-    import redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
+class M1OptimizedLRUCache:
+    """LRU cache optimalizovaný pro M1 s aktivním memory managementem"""
 
-class LRUCache:
-    """Optimalizovaný LRU cache s TTL a size limits"""
-
-    def __init__(self, max_size: int = 1000, default_ttl: int = 3600):
+    def __init__(self, max_size: int = 500, default_ttl: int = 3600):
         self._cache = OrderedDict()
         self._lock = threading.RLock()
         self.max_size = max_size
@@ -25,372 +25,343 @@ class LRUCache:
         self._hits = 0
         self._misses = 0
 
+        # M1 specifické optimalizace
+        self.memory_threshold = 1.5  # GB - spustí cleanup při nedostatku paměti
+        self.auto_gc_enabled = True
+        self.compression_enabled = True
+
+    def _check_memory_pressure(self) -> bool:
+        """Kontroluje memory pressure a spustí cleanup pokud je potřeba"""
+        try:
+            memory = psutil.virtual_memory()
+            available_gb = memory.available / (1024**3)
+
+            if available_gb < self.memory_threshold:
+                # Emergency cleanup
+                self._emergency_cleanup()
+                return True
+        except:
+            pass
+        return False
+
+    def _emergency_cleanup(self):
+        """Emergency cleanup při nízkém RAM"""
+        with self._lock:
+            # Odstraň 50% nejstarších entries
+            items_to_remove = len(self._cache) // 2
+            for _ in range(items_to_remove):
+                if self._cache:
+                    self._cache.popitem(last=False)
+
+            # Force garbage collection
+            if self.auto_gc_enabled:
+                gc.collect()
+
     def _evict_expired(self):
-        """Odstraní expirované entries"""
+        """Odstraní expirované entries s optimalizací"""
         current_time = time.time()
         expired_keys = []
 
+        # Optimalizace: kontroluj max 100 items najednou
+        check_count = 0
         for key, (value, expire_at, access_count) in self._cache.items():
             if current_time > expire_at:
                 expired_keys.append(key)
+            check_count += 1
+            if check_count >= 100:  # Limit pro performance
+                break
 
         for key in expired_keys:
             del self._cache[key]
 
     def _evict_lru(self):
-        """Odstraní nejméně používané entries když překročíme limit"""
+        """Odstraní nejméně používané entries s memory check"""
+        self._check_memory_pressure()
+
         while len(self._cache) >= self.max_size:
-            # Remove least recently used item
             self._cache.popitem(last=False)
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None):
+        """Uloží hodnotu s M1 optimalizacemi"""
         with self._lock:
             self._evict_expired()
             expire_at = time.time() + (ttl or self.default_ttl)
 
+            # Komprese pro větší objekty
+            if self.compression_enabled and self._should_compress(value):
+                value = self._compress_value(value)
+
             if key in self._cache:
-                # Update existing entry and move to end
+                # Update existing
+                _, _, access_count = self._cache[key]
+                self._cache[key] = (value, expire_at, access_count + 1)
                 self._cache.move_to_end(key)
             else:
-                # Add new entry
+                # Add new
+                self._cache[key] = (value, expire_at, 1)
                 self._evict_lru()
 
-            self._cache[key] = (value, expire_at, 1)
-
     def get(self, key: str) -> Optional[Any]:
+        """Získá hodnotu s tracking statistik"""
         with self._lock:
-            self._evict_expired()
-
             if key not in self._cache:
                 self._misses += 1
                 return None
 
             value, expire_at, access_count = self._cache[key]
+            current_time = time.time()
 
-            if time.time() > expire_at:
+            if current_time > expire_at:
                 del self._cache[key]
                 self._misses += 1
                 return None
 
-            # Move to end (most recently used) and increment access count
-            self._cache.move_to_end(key)
+            # Update access info and move to end
             self._cache[key] = (value, expire_at, access_count + 1)
+            self._cache.move_to_end(key)
             self._hits += 1
+
+            # Dekomprese pokud je potřeba
+            if self.compression_enabled and self._is_compressed(value):
+                value = self._decompress_value(value)
+
             return value
 
-    def delete(self, key: str):
-        with self._lock:
-            if key in self._cache:
-                del self._cache[key]
+    def _should_compress(self, value: Any) -> bool:
+        """Rozhodne, zda komprimovat hodnotu"""
+        try:
+            # Komprimuj objekty větší než 1KB
+            serialized = pickle.dumps(value)
+            return len(serialized) > 1024
+        except:
+            return False
+
+    def _compress_value(self, value: Any) -> Dict:
+        """Komprimuje hodnotu"""
+        try:
+            import gzip
+            serialized = pickle.dumps(value)
+            compressed = gzip.compress(serialized)
+            return {'_compressed': True, 'data': compressed}
+        except:
+            return value
+
+    def _is_compressed(self, value: Any) -> bool:
+        """Kontroluje, zda je hodnota komprimovaná"""
+        return isinstance(value, dict) and value.get('_compressed', False)
+
+    def _decompress_value(self, value: Dict) -> Any:
+        """Dekomprimuje hodnotu"""
+        try:
+            import gzip
+            decompressed = gzip.decompress(value['data'])
+            return pickle.loads(decompressed)
+        except:
+            return value
 
     def clear(self):
+        """Vyčistí cache"""
         with self._lock:
             self._cache.clear()
-            self._hits = 0
-            self._misses = 0
+            if self.auto_gc_enabled:
+                gc.collect()
 
-    def stats(self) -> Dict[str, Any]:
-        """Vrátí cache statistiky"""
+    def get_stats(self) -> Dict:
+        """Vrátí statistiky cache"""
         with self._lock:
-            total = self._hits + self._misses
-            hit_rate = (self._hits / total * 100) if total > 0 else 0
+            total_requests = self._hits + self._misses
+            hit_rate = (self._hits / total_requests * 100) if total_requests > 0 else 0
 
             return {
                 'size': len(self._cache),
                 'max_size': self.max_size,
                 'hits': self._hits,
                 'misses': self._misses,
-                'hit_rate': f"{hit_rate:.2f}%",
-                'memory_usage': len(pickle.dumps(self._cache))
+                'hit_rate': f"{hit_rate:.1f}%",
+                'memory_usage_mb': self._estimate_memory_usage()
             }
 
-class PersistentCache:
-    """Persistent cache s disk storage"""
+    def _estimate_memory_usage(self) -> float:
+        """Odhadne spotřebu paměti v MB"""
+        try:
+            total_size = 0
+            for key, (value, _, _) in list(self._cache.items())[:10]:  # Sample prvních 10
+                total_size += len(pickle.dumps((key, value)))
 
-    def __init__(self, cache_dir: str = "cache", default_ttl: int = 86400):
-        self.cache_dir = Path(cache_dir)
+            avg_size = total_size / min(10, len(self._cache)) if self._cache else 0
+            estimated_total = avg_size * len(self._cache)
+            return estimated_total / (1024 * 1024)  # Convert to MB
+        except:
+            return 0.0
+
+class M1OptimizedCacheManager:
+    """Hlavní cache manager optimalizovaný pro M1"""
+
+    def __init__(self, cache_dir: Optional[Path] = None):
+        self.cache_dir = cache_dir or Path.home() / ".research_cache"
         self.cache_dir.mkdir(exist_ok=True)
-        self.default_ttl = default_ttl
-        self._index_file = self.cache_dir / "index.json"
-        self._load_index()
 
-    def _load_index(self):
-        """Načte index souborů"""
-        try:
-            if self._index_file.exists():
-                with open(self._index_file, 'r') as f:
-                    self._index = json.load(f)
-            else:
-                self._index = {}
-        except Exception:
-            self._index = {}
+        # Memory cache optimalizovaný pro M1
+        self.memory_cache = M1OptimizedLRUCache(max_size=300, default_ttl=1800)
 
-    def _save_index(self):
-        """Uloží index souborů"""
-        try:
-            with open(self._index_file, 'w') as f:
-                json.dump(self._index, f, indent=2)
-        except Exception:
-            pass
+        # Disk cache pro persistence
+        self.disk_cache_enabled = True
+        self.max_disk_cache_size_mb = 500  # 500MB limit
 
-    def _get_cache_path(self, key: str) -> Path:
-        """Generuje cestu k cache souboru"""
-        key_hash = hashlib.md5(key.encode()).hexdigest()
-        return self.cache_dir / f"{key_hash}.cache"
+        # Statistics
+        self.stats = {
+            'memory_hits': 0,
+            'memory_misses': 0,
+            'disk_hits': 0,
+            'disk_misses': 0
+        }
+
+    def _get_cache_key(self, key: str) -> str:
+        """Vytvoří normalizovaný cache key"""
+        return hashlib.md5(key.encode()).hexdigest()
+
+    def _get_disk_path(self, cache_key: str) -> Path:
+        """Vrátí cestu k disk cache souboru"""
+        return self.cache_dir / f"{cache_key}.cache"
+
+    def get(self, key: str) -> Optional[Any]:
+        """Získá hodnotu z cache (memory -> disk)"""
+        cache_key = self._get_cache_key(key)
+
+        # 1. Zkus memory cache
+        value = self.memory_cache.get(cache_key)
+        if value is not None:
+            self.stats['memory_hits'] += 1
+            return value
+
+        self.stats['memory_misses'] += 1
+
+        # 2. Zkus disk cache
+        if self.disk_cache_enabled:
+            disk_value = self._get_from_disk(cache_key)
+            if disk_value is not None:
+                # Vrať do memory cache
+                self.memory_cache.set(cache_key, disk_value)
+                self.stats['disk_hits'] += 1
+                return disk_value
+
+        self.stats['disk_misses'] += 1
+        return None
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None):
+        """Uloží hodnotu do cache"""
+        cache_key = self._get_cache_key(key)
+
+        # Ulož do memory cache
+        self.memory_cache.set(cache_key, value, ttl)
+
+        # Ulož na disk
+        if self.disk_cache_enabled:
+            self._save_to_disk(cache_key, value, ttl)
+
+    def _get_from_disk(self, cache_key: str) -> Optional[Any]:
+        """Načte hodnotu z disk cache"""
         try:
-            expire_at = time.time() + (ttl or self.default_ttl)
-            cache_path = self._get_cache_path(key)
+            cache_path = self._get_disk_path(cache_key)
+            if not cache_path.exists():
+                return None
 
-            # Save data
-            with open(cache_path, 'wb') as f:
-                pickle.dump(value, f)
+            with open(cache_path, 'rb') as f:
+                data = pickle.load(f)
 
-            # Update index
-            self._index[key] = {
-                'file': cache_path.name,
+            # Kontrola expiry
+            if time.time() > data.get('expire_at', 0):
+                cache_path.unlink(missing_ok=True)
+                return None
+
+            return data.get('value')
+
+        except Exception:
+            return None
+
+    def _save_to_disk(self, cache_key: str, value: Any, ttl: Optional[int]):
+        """Uloží hodnotu na disk"""
+        try:
+            # Kontrola velikosti disk cache
+            self._cleanup_disk_cache_if_needed()
+
+            cache_path = self._get_disk_path(cache_key)
+            expire_at = time.time() + (ttl or 3600)
+
+            data = {
+                'value': value,
                 'expire_at': expire_at,
                 'created_at': time.time()
             }
-            self._save_index()
 
-        except Exception as e:
-            print(f"Error saving to persistent cache: {e}")
+            with open(cache_path, 'wb') as f:
+                pickle.dump(data, f)
 
-    def get(self, key: str) -> Optional[Any]:
+        except Exception:
+            pass  # Disk cache failures are non-critical
+
+    def _cleanup_disk_cache_if_needed(self):
+        """Vyčistí disk cache pokud je příliš velká"""
         try:
-            if key not in self._index:
-                return None
+            total_size = sum(
+                f.stat().st_size for f in self.cache_dir.glob("*.cache")
+            )
 
-            entry = self._index[key]
+            if total_size > self.max_disk_cache_size_mb * 1024 * 1024:
+                # Vymaž nejstarší soubory
+                cache_files = sorted(
+                    self.cache_dir.glob("*.cache"),
+                    key=lambda x: x.stat().st_mtime
+                )
 
-            # Check expiration
-            if time.time() > entry['expire_at']:
-                self.delete(key)
-                return None
+                # Vymaž nejstarší 30%
+                files_to_remove = len(cache_files) // 3
+                for cache_file in cache_files[:files_to_remove]:
+                    cache_file.unlink(missing_ok=True)
 
-            cache_path = self.cache_dir / entry['file']
-            if not cache_path.exists():
-                del self._index[key]
-                self._save_index()
-                return None
-
-            # Load data
-            with open(cache_path, 'rb') as f:
-                return pickle.load(f)
-
-        except Exception as e:
-            print(f"Error loading from persistent cache: {e}")
-            return None
-
-    def delete(self, key: str):
-        try:
-            if key in self._index:
-                entry = self._index[key]
-                cache_path = self.cache_dir / entry['file']
-                if cache_path.exists():
-                    cache_path.unlink()
-                del self._index[key]
-                self._save_index()
         except Exception:
             pass
 
-    def cleanup_expired(self):
-        """Vyčistí expirované soubory"""
-        current_time = time.time()
-        expired_keys = []
-
-        for key, entry in self._index.items():
-            if current_time > entry['expire_at']:
-                expired_keys.append(key)
-
-        for key in expired_keys:
-            self.delete(key)
-
-class InMemoryCache:
-    def __init__(self, default_ttl: int = 600):
-        self._store = {}
-        self._lock = threading.Lock()
-        self.default_ttl = default_ttl
-
-    def set(self, key: str, value: Any, ttl: Optional[int] = None):
-        expire_at = time.time() + (ttl or self.default_ttl)
-        with self._lock:
-            self._store[key] = (value, expire_at)
-
-    def get(self, key: str) -> Optional[Any]:
-        with self._lock:
-            item = self._store.get(key)
-            if not item:
-                return None
-            value, expire_at = item
-            if time.time() > expire_at:
-                del self._store[key]
-                return None
-            return value
-
-    def delete(self, key: str):
-        with self._lock:
-            if key in self._store:
-                del self._store[key]
-
     def clear(self):
-        with self._lock:
-            self._store.clear()
-
-class RedisCache:
-    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, ttl: int = 86400):
-        self.ttl = ttl
-        self.client = redis.StrictRedis(host=host, port=port, db=db, decode_responses=True)
-
-    def set(self, key: str, value: Any, ttl: int = None) -> None:
-        import json
-        self.client.setex(key, ttl or self.ttl, json.dumps(value))
-
-    def get(self, key: str) -> Optional[Any]:
-        import json
-        result = self.client.get(key)
-        return json.loads(result) if result else None
-
-    def delete(self, key: str):
-        self.client.delete(key)
-
-    def clear(self):
-        self.client.flushdb()
-
-class CacheManager:
-    """Multi-layer cache manager s fallback strategií"""
-
-    def __init__(self, use_redis: bool = False, use_persistent: bool = True,
-                 memory_size: int = 1000, default_ttl: int = 3600):
-
-        # Layer 1: In-memory LRU cache (fastest)
-        self.memory_cache = LRUCache(max_size=memory_size, default_ttl=default_ttl)
-
-        # Layer 2: Persistent disk cache
-        self.persistent_cache = PersistentCache() if use_persistent else None
-
-        # Layer 3: Redis cache (if available)
-        self.redis_cache = None
-        if use_redis and REDIS_AVAILABLE:
-            try:
-                self.redis_cache = RedisCache(ttl=default_ttl * 24)  # Redis cache longer
-            except Exception:
-                print("Redis not available, using fallback caches")
-
-        self.stats_counters = {
-            'memory_hits': 0,
-            'persistent_hits': 0,
-            'redis_hits': 0,
-            'total_misses': 0
-        }
-
-    def _generate_key(self, key: str) -> str:
-        """Normalize cache key"""
-        if isinstance(key, str):
-            return f"cache:{hashlib.md5(key.encode()).hexdigest()}"
-        return f"cache:{hashlib.md5(str(key).encode()).hexdigest()}"
-
-    def set(self, key: str, value: Any, ttl: Optional[int] = None):
-        """Set value in all available cache layers"""
-        cache_key = self._generate_key(key)
-
-        # Always set in memory cache
-        self.memory_cache.set(cache_key, value, ttl)
-
-        # Set in persistent cache if available
-        if self.persistent_cache:
-            self.persistent_cache.set(cache_key, value, ttl)
-
-        # Set in Redis cache if available
-        if self.redis_cache:
-            try:
-                self.redis_cache.set(cache_key, value, ttl)
-            except Exception:
-                pass  # Silently fail if Redis is down
-
-    def get(self, key: str) -> Optional[Any]:
-        """Get value with fallback strategy: Memory -> Persistent -> Redis"""
-        cache_key = self._generate_key(key)
-
-        # Try memory cache first (fastest)
-        value = self.memory_cache.get(cache_key)
-        if value is not None:
-            self.stats_counters['memory_hits'] += 1
-            return value
-
-        # Try persistent cache
-        if self.persistent_cache:
-            value = self.persistent_cache.get(cache_key)
-            if value is not None:
-                # Promote to memory cache
-                self.memory_cache.set(cache_key, value)
-                self.stats_counters['persistent_hits'] += 1
-                return value
-
-        # Try Redis cache
-        if self.redis_cache:
-            try:
-                value = self.redis_cache.get(cache_key)
-                if value is not None:
-                    # Promote to both memory and persistent cache
-                    self.memory_cache.set(cache_key, value)
-                    if self.persistent_cache:
-                        self.persistent_cache.set(cache_key, value)
-                    self.stats_counters['redis_hits'] += 1
-                    return value
-            except Exception:
-                pass
-
-        # Cache miss
-        self.stats_counters['total_misses'] += 1
-        return None
-
-    def delete(self, key: str):
-        """Delete from all cache layers"""
-        cache_key = self._generate_key(key)
-
-        self.memory_cache.delete(cache_key)
-
-        if self.persistent_cache:
-            self.persistent_cache.delete(cache_key)
-
-        if self.redis_cache:
-            try:
-                self.redis_cache.delete(cache_key)
-            except Exception:
-                pass
-
-    def clear(self):
-        """Clear all cache layers"""
+        """Vyčistí veškerou cache"""
         self.memory_cache.clear()
 
-        if self.persistent_cache:
-            self.persistent_cache.cleanup_expired()
+        if self.disk_cache_enabled:
+            for cache_file in self.cache_dir.glob("*.cache"):
+                cache_file.unlink(missing_ok=True)
 
-        if self.redis_cache:
-            try:
-                self.redis_cache.clear()
-            except Exception:
-                pass
+    def get_stats(self) -> Dict:
+        """Vrátí kompletní statistiky"""
+        memory_stats = self.memory_cache.get_stats()
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get comprehensive cache statistics"""
-        memory_stats = self.memory_cache.stats()
-
-        total_hits = (self.stats_counters['memory_hits'] +
-                     self.stats_counters['persistent_hits'] +
-                     self.stats_counters['redis_hits'])
-        total_requests = total_hits + self.stats_counters['total_misses']
-
-        overall_hit_rate = (total_hits / total_requests * 100) if total_requests > 0 else 0
+        # Disk cache stats
+        try:
+            disk_files = list(self.cache_dir.glob("*.cache"))
+            disk_size_mb = sum(f.stat().st_size for f in disk_files) / (1024 * 1024)
+        except:
+            disk_files = []
+            disk_size_mb = 0
 
         return {
-            'memory_cache': memory_stats,
-            'layer_stats': self.stats_counters,
-            'overall_hit_rate': f"{overall_hit_rate:.2f}%",
-            'total_requests': total_requests,
-            'persistent_enabled': self.persistent_cache is not None,
-            'redis_enabled': self.redis_cache is not None
+            **memory_stats,
+            'disk_files': len(disk_files),
+            'disk_size_mb': f"{disk_size_mb:.1f}",
+            'total_memory_hits': self.stats['memory_hits'],
+            'total_disk_hits': self.stats['disk_hits'],
+            'total_misses': self.stats['memory_misses'] + self.stats['disk_misses']
         }
+
+# Factory function
+def create_m1_optimized_cache_manager() -> M1OptimizedCacheManager:
+    """Vytvoří optimalizovaný cache manager pro M1"""
+    return M1OptimizedCacheManager()
+
+# Global instance
+_cache_manager = None
+
+def get_cache_manager() -> M1OptimizedCacheManager:
+    """Získá globální cache manager instance"""
+    global _cache_manager
+    if _cache_manager is None:
+        _cache_manager = create_m1_optimized_cache_manager()
+    return _cache_manager

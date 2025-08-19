@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-"""
 Unified Main Entry Point - Hlavní vstupní bod pro celý Academic Research Tool
 Sjednocuje všechny komponenty a poskytuje jednotné CLI rozhraní
 """
@@ -8,7 +6,7 @@ import asyncio
 import logging
 import sys
 import argparse
-from pathlib import Path
+import time
 from typing import Optional, List
 import json
 
@@ -20,6 +18,11 @@ try:
 except ImportError as e:
     print(f"❌ Error importing unified components: {e}")
     UNIFIED_AVAILABLE = False
+    # Define fallbacks for missing components
+    get_config = None
+    create_config = None
+    Environment = None
+    create_scraping_orchestrator = None
     sys.exit(1)
 
 # Setup logging
@@ -53,6 +56,9 @@ class UnifiedResearchTool:
         logger.info(f"Starting scraping operation for query: '{query}'")
 
         try:
+            if create_scraping_orchestrator is None:
+                raise ImportError("Academic scraper not available")
+
             orchestrator = create_scraping_orchestrator()
 
             # Run scraping
@@ -115,25 +121,21 @@ class UnifiedResearchTool:
 
         if server_type == "unified":
             # Run FastAPI unified server via uvicorn
-            from unified_server import create_app
-            import uvicorn
-            app = create_app()
-            uvicorn.run(
-                app,
-                host=self.config.api.host,
-                port=self.config.api.port,
-                reload=self.config.api.debug
-            )
-        elif server_type == "flask":
-            from app import create_app
-            app = create_app()
-            app.run(
-                host=self.config.api.host,
-                port=self.config.api.port,
-                debug=self.config.api.debug
-            )
+            try:
+                from unified_server import create_app
+                import uvicorn
+                app = create_app()
+                uvicorn.run(
+                    app,
+                    host=self.config.api.host,
+                    port=self.config.api.port,
+                    reload=self.config.api.debug
+                )
+            except ImportError:
+                logger.error("unified_server module not found. Please ensure it's properly configured.")
+                raise
         else:
-            raise ValueError(f"Unknown server type: {server_type}")
+            raise ValueError(f"Unsupported server type: {server_type}. Only 'unified' is supported.")
 
     def show_config(self):
         """Display current configuration"""
@@ -150,148 +152,324 @@ class UnifiedResearchTool:
             status = "✅ Enabled" if source.enabled else "❌ Disabled"
             print(f"  {name}: {status} ({source.base_url})")
 
-    def run_diagnostics(self):
-        """Run system diagnostics"""
-        print(f"\n🔍 System Diagnostics:")
-
-        # Check configuration
-        errors = self.config.validate()
-        if errors:
-            print("❌ Configuration Issues:")
-            for error in errors:
-                print(f"  - {error}")
-        else:
-            print("✅ Configuration: OK")
-
-        # Check dependencies
+    def run_tests(self):
+        """Spustí test suite"""
+        print("\n🧪 Running test suite...")
+        import subprocess
         try:
-            import requests, aiohttp  # noqa: F401
-            import bs4  # noqa: F401
-            print("✅ Core Dependencies: OK")
-        except ImportError as e:
-            print(f"❌ Missing Dependencies: {e}")
+            result = subprocess.run(['python', '-m', 'pytest', '-v'],
+                                  capture_output=True, text=True, cwd='.')
+            print(result.stdout)
+            if result.stderr:
+                print(f"Errors: {result.stderr}")
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Failed to run tests: {e}")
+            return False
 
-        # Check API keys
-        import os
-        api_keys = {}
-        for source_name, source_config in self.config.sources.items():
-            if source_config.api_key_env:
-                key_present = bool(os.getenv(source_config.api_key_env))
-                api_keys[source_name] = key_present
+    def show_status(self):
+        """Zobrazí status systému s rozšířenými informacemi"""
+        print(f"\n📊 System Status:")
+        print(f"Environment: {self.config.environment.value}")
+        print(f"Cache enabled: {self.config.cache.enabled}")
 
-        if api_keys:
-            print("🔑 API Keys:")
-            for source, present in api_keys.items():
-                status = "✅ Present" if present else "❌ Missing"
-                print(f"  {source}: {status}")
+        # Test AI connectivity
+        if self.config.ai.use_local_ai:
+            try:
+                import requests
+                response = requests.get(f"{self.config.ai.local_ai.ollama_host}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    print("✅ Local AI (Ollama): Connected")
+                    models = response.json().get('models', [])
+                    print(f"   Available models: {len(models)}")
+                else:
+                    print("❌ Local AI (Ollama): Not responding")
+            except Exception:
+                print("❌ Local AI (Ollama): Not available")
 
-        # Test basic scraping
-        print("\n🧪 Testing Basic Scraping:")
-        asyncio.run(self._test_scraping())
+        # Test sources
+        enabled_sources = [name for name, source in self.config.sources.items() if source.enabled]
+        print(f"Enabled sources: {len(enabled_sources)}")
 
-    async def _test_scraping(self):
-        """Test basic scraping functionality"""
+        # Enhanced status with new systems
         try:
-            orchestrator = create_scraping_orchestrator()
+            from smart_caching_system import get_intelligent_cache
+            cache = get_intelligent_cache()
+            cache_stats = cache.get_cache_stats()
+            print(f"\n🧠 Intelligent Cache Status:")
+            print(f"   Cache hit rate: {cache_stats['cache_hit_rate']:.2%}")
+            print(f"   Total entries: {cache_stats['total_entries']}")
+            print(f"   Cache size: {cache_stats['total_size_mb']:.1f}MB")
+            print(f"   Predictive hits: {cache_stats['predictive_hits']}")
+        except ImportError:
+            print("⚠️ Smart caching not available")
 
-            # Quick test with Wikipedia only
-            results = await orchestrator.scrape_all_sources("test", ["wikipedia"])
+        try:
+            from adaptive_learning_system import get_personalization_engine
+            engine = get_personalization_engine()
+            learning_stats = engine.get_learning_stats()
+            print(f"\n🎯 Personalization Status:")
+            print(f"   Learned preferences: {learning_stats['total_preferences']}")
+            print(f"   High confidence preferences: {learning_stats['high_confidence_preferences']}")
+            if learning_stats['most_researched_peptide']:
+                print(f"   Top peptide interest: {learning_stats['most_researched_peptide'][0]}")
+        except ImportError:
+            print("⚠️ Adaptive learning not available")
 
-            if results and results[0].success:
-                print("✅ Basic Scraping: OK")
-            else:
-                print("❌ Basic Scraping: Failed")
-                if results:
-                    print(f"  Error: {results[0].error}")
+    async def run_advanced_research(self, query: str, priority: str = "balanced",
+                                  enable_quality_check: bool = True,
+                                  enable_personalization: bool = True) -> dict:
+        """Advanced research s všemi novými funkcemi"""
+        logger.info(f"Starting advanced research for: '{query}'")
+        start_time = time.time()
 
-            await orchestrator.cleanup()
+        try:
+            # 1. Intelligent source selection a research orchestration
+            from intelligent_research_orchestrator import IntelligentResearchOrchestrator
+            orchestrator = IntelligentResearchOrchestrator()
+
+            priority_map = {
+                "speed": "SPEED",
+                "balanced": "ACCURACY",
+                "quality": "DEPTH"
+            }
+
+            research_priority = getattr(__import__('intelligent_research_orchestrator').ResearchPriority,
+                                      priority_map.get(priority, "ACCURACY"))
+
+            # 2. Conduct intelligent research
+            research_results = await orchestrator.conduct_intelligent_research(
+                query, priority=research_priority, max_sources=6
+            )
+
+            # 3. Quality assessment
+            if enable_quality_check:
+                try:
+                    from quality_assessment_system import assess_research_quality
+                    quality_report = await assess_research_quality(research_results)
+                    research_results['quality_assessment'] = quality_report['quality_assessment']
+                    logger.info("✅ Quality assessment completed")
+                except ImportError:
+                    logger.warning("Quality assessment not available")
+
+            # 4. Personalization learning
+            if enable_personalization:
+                try:
+                    from adaptive_learning_system import learn_from_research_session
+                    sources_used = research_results.get('sources_used', [])
+                    time_spent = time.time() - start_time
+                    await learn_from_research_session(query, sources_used, time_spent)
+                    logger.info("📚 Learning from research session completed")
+                except ImportError:
+                    logger.warning("Personalization learning not available")
+
+            # 5. Performance metrics
+            total_time = time.time() - start_time
+            research_results.update({
+                'advanced_features': {
+                    'intelligent_orchestration': True,
+                    'quality_assessment': enable_quality_check,
+                    'personalization_learning': enable_personalization,
+                    'total_processing_time': total_time
+                }
+            })
+
+            print(f"\n🎯 Advanced Research Summary:")
+            print(f"Query: {query}")
+            print(f"Processing time: {total_time:.2f}s")
+            print(f"Sources analyzed: {len(research_results.get('sources_used', []))}")
+
+            if 'quality_assessment' in research_results:
+                qa = research_results['quality_assessment']['overall_metrics']
+                print(f"Quality: {qa['high_quality_sources']}/{qa['total_sources']} high-quality sources")
+
+            return research_results
 
         except Exception as e:
-            print(f"❌ Basic Scraping: Error - {e}")
+            logger.error(f"Advanced research failed: {e}")
+            # Fallback to basic scraping
+            return await self.run_scraping(query, None, None)
 
-def main():
-    """Main CLI entry point"""
-    parser = argparse.ArgumentParser(
-        description="Unified Academic Research Tool",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python unified_main.py scrape "machine learning" --sources wikipedia openalex
-  python unified_main.py server --type unified
-  python unified_main.py config
-  python unified_main.py diagnostics
-        """
-    )
+    async def run_peptide_research(self, peptide_name: str, research_type: str = "comprehensive") -> dict:
+        """Specializovaný peptide research s AI optimalizacemi"""
+        research_queries = {
+            "comprehensive": f"comprehensive analysis of {peptide_name} including mechanism, dosage, safety, clinical evidence",
+            "dosage": f"{peptide_name} dosage protocol administration timing cycling",
+            "safety": f"{peptide_name} side effects contraindications safety profile risks",
+            "mechanism": f"{peptide_name} mechanism of action pathways receptors pharmacokinetics",
+            "clinical": f"{peptide_name} clinical trials research studies evidence efficacy"
+        }
 
-    # Global options
+        query = research_queries.get(research_type, research_queries["comprehensive"])
+
+        print(f"\n🧬 Peptide Research: {peptide_name}")
+        print(f"Focus: {research_type}")
+
+        return await self.run_advanced_research(
+            query,
+            priority="quality",  # Always use high quality for peptide research
+            enable_quality_check=True,
+            enable_personalization=True
+        )
+
+async def main():
+    """Hlavní async CLI funkce"""
+    parser = argparse.ArgumentParser(description='Unified Academic Research Tool')
     parser.add_argument('--env', choices=['development', 'testing', 'production'],
-                       help='Environment to use')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Enable verbose logging')
+                       default='development', help='Environment to run in')
 
-    # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    # Scrape command
+    # Scraping command
     scrape_parser = subparsers.add_parser('scrape', help='Run scraping operation')
     scrape_parser.add_argument('query', help='Search query')
-    scrape_parser.add_argument('--sources', nargs='+',
-                              choices=['wikipedia', 'openalex', 'semantic_scholar', 'pubmed'],
-                              help='Sources to scrape')
-    scrape_parser.add_argument('--output', '-o', help='Output file path')
+    scrape_parser.add_argument('--sources', nargs='+', help='Specific sources to use')
+    scrape_parser.add_argument('--output', '-o', help='Output file for results')
 
     # Server command
-    server_parser = subparsers.add_parser('server', help='Start web server')
+    server_parser = subparsers.add_parser('server', help='Run web server')
     server_parser.add_argument('--type', choices=['unified', 'flask'],
                               default='unified', help='Server type')
 
-    # Config command
-    subparsers.add_parser('config', help='Show current configuration')
+    # Config commands
+    config_parser = subparsers.add_parser('config', help='Configuration management')
+    config_parser.add_argument('action', choices=['show', 'validate'],
+                              help='Configuration action')
 
-    # Diagnostics command
-    subparsers.add_parser('diagnostics', help='Run system diagnostics')
+    # Test command
+    test_parser = subparsers.add_parser('test', help='Run test suite')
 
-    # Parse arguments
+    # Status command
+    status_parser = subparsers.add_parser('status', help='Show system status')
+
+    # Advanced research command
+    research_parser = subparsers.add_parser('research', help='Advanced AI-powered research')
+    research_parser.add_argument('query', help='Research query')
+    research_parser.add_argument('--priority', choices=['speed', 'balanced', 'quality'],
+                                default='balanced', help='Research priority')
+    research_parser.add_argument('--output', '-o', help='Output file for results')
+    research_parser.add_argument('--no-quality-check', action='store_true',
+                                help='Disable quality assessment')
+    research_parser.add_argument('--no-learning', action='store_true',
+                                help='Disable personalization learning')
+
+    # Peptide research command
+    peptide_parser = subparsers.add_parser('peptide', help='Specialized peptide research')
+    peptide_parser.add_argument('name', help='Peptide name (e.g., BPC-157, TB-500)')
+    peptide_parser.add_argument('--type', choices=['comprehensive', 'dosage', 'safety', 'mechanism', 'clinical'],
+                               default='comprehensive', help='Research focus')
+    peptide_parser.add_argument('--output', '-o', help='Output file for results')
+
+    # Cache management
+    cache_parser = subparsers.add_parser('cache', help='Cache management')
+    cache_parser.add_argument('action', choices=['stats', 'clean', 'preload'],
+                             help='Cache action')
+    cache_parser.add_argument('--query', help='Query for preload action')
+
+    # Learning insights
+    insights_parser = subparsers.add_parser('insights', help='Show personalization insights')
+
     args = parser.parse_args()
 
-    # Setup logging level
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    if not args.command:
+        parser.print_help()
+        return
 
-    # Determine environment
-    environment = None
-    if args.env:
-        environment = Environment(args.env)
-
+    # Initialize tool
     try:
-        # Initialize tool
+        environment = Environment(args.env) if hasattr(args, 'env') else Environment.DEVELOPMENT
         tool = UnifiedResearchTool(environment)
 
         # Execute command
         if args.command == 'scrape':
-            asyncio.run(tool.run_scraping(args.query, args.sources, args.output))
+            await tool.run_scraping(args.query, args.sources, args.output)
 
-        elif args.command == 'server':
-            tool.run_server(args.type)
+        elif args.command == 'research':
+            result = await tool.run_advanced_research(
+                args.query,
+                priority=args.priority,
+                enable_quality_check=not args.no_quality_check,
+                enable_personalization=not args.no_learning
+            )
+            if args.output:
+                with open(args.output, 'w', encoding='utf-8') as f:
+                    json.dump(result, f, indent=2, ensure_ascii=False)
+                print(f"📄 Advanced research results saved to: {args.output}")
 
-        elif args.command == 'config':
-            tool.show_config()
+        elif args.command == 'peptide':
+            result = await tool.run_peptide_research(args.name, args.type)
+            if args.output:
+                with open(args.output, 'w', encoding='utf-8') as f:
+                    json.dump(result, f, indent=2, ensure_ascii=False)
+                print(f"🧬 Peptide research results saved to: {args.output}")
 
-        elif args.command == 'diagnostics':
-            tool.run_diagnostics()
+        elif args.command == 'cache':
+            if args.action == 'stats':
+                try:
+                    from smart_caching_system import get_intelligent_cache
+                    cache = get_intelligent_cache()
+                    stats = cache.get_cache_stats()
+                    print(f"\n📊 Cache Statistics:")
+                    print(f"Hit rate: {stats['cache_hit_rate']:.2%}")
+                    print(f"Total entries: {stats['total_entries']}")
+                    print(f"Cache size: {stats['total_size_mb']:.1f}MB")
+                    print(f"Predictive hits: {stats['predictive_hits']}")
+                    print(f"Hot cache entries: {stats['hot_cache_size']}")
+                except ImportError:
+                    print("❌ Smart caching not available")
 
-        else:
-            parser.print_help()
+            elif args.action == 'clean':
+                try:
+                    from smart_caching_system import get_intelligent_cache
+                    cache = get_intelligent_cache()
+                    await cache.cleanup_old_cache()
+                    print("✅ Cache cleanup completed")
+                except ImportError:
+                    print("❌ Smart caching not available")
 
-    except KeyboardInterrupt:
-        logger.info("Operation cancelled by user")
-        sys.exit(1)
+            elif args.action == 'preload':
+                if not args.query:
+                    print("❌ --query required for preload action")
+                    return
+                try:
+                    from smart_caching_system import get_intelligent_cache
+                    cache = get_intelligent_cache()
+                    await cache.predictive_preload(args.query)
+                    print(f"🔮 Predictive preload initiated for: {args.query}")
+                except ImportError:
+                    print("❌ Smart caching not available")
+
+        elif args.command == 'insights':
+            try:
+                from adaptive_learning_system import get_personalization_engine
+                engine = get_personalization_engine()
+                insights = await engine.generate_insights()
+                print(f"\n🎯 Personalization Insights:")
+                print(insights.get('insights', 'No insights available'))
+
+                stats = engine.get_learning_stats()
+                print(f"\n📊 Learning Statistics:")
+                for key, value in stats.items():
+                    print(f"  {key}: {value}")
+            except ImportError:
+                print("❌ Adaptive learning not available")
     except Exception as e:
-        logger.error(f"Operation failed: {e}")
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
+        logger.error(f"Command failed: {e}")
+        sys.exit(1)
+
+def cli_main():
+    """Synchronní wrapper pro CLI"""
+    if not UNIFIED_AVAILABLE:
+        print("❌ Unified components not available. Please install dependencies.")
+        sys.exit(1)
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 Interrupted by user")
+    except Exception as e:
+        logger.error(f"Application failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    cli_main()

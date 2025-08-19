@@ -1,200 +1,185 @@
-# ResearchTool 🔬
+# 🔬 Academic Research Tool - Unified Version
 
-Ultra-optimalizovaný nástroj pro akademický výzkum s minimálními náklady. Univerzální řešení pro **všechny domény** - od medicíny přes technologie až po vědu a byznys. Cíl: být levnější než Perplexity ($20/měsíc) při zachování vysoké kvality výsledků.
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**Production-ready akademický výzkumný nástroj s optimalizovanou unified architekturou pro MacBook Air M1 a lokální AI**
 
 ## 🎯 Klíčové výhody
 
-- **💰 75% úspora nákladů**: $15/měsíc vs $20 Perplexity
-- **⚡ 80% úspora tokenů** díky agresivní optimalizaci
-- **🌐 Univerzální domény**: Medicína, technologie, věda, byznys, ekologie, vzdělávání
-- **🚀 Azure App Service ready**: Free tier optimalizace
-- **📚 Skutečný Google Scholar**: scholarly knihovna s anti-detection
+- **💰 100% úspora nákladů**: Kompletně offline s lokálním AI (Ollama + Llama 3.1 8B)
+- **🔒 Maximální privacy**: Žádné externí API, vše lokálně
+- **⚡ M1 optimalizace**: Speciálně optimalizováno pro Apple Silicon
+- **🌐 Univerzální domény**: Medicína, technologie, věda, byznys
+- **🚀 Sjednocená architektura**: Jeden vstupní bod, minimální konfigurace
 
-## 🔧 Podporované domény
+## 🏗️ Unified Architecture
 
-### 🏥 **Medicína**
-- **Specializace**: Nootropika, peptidy, medikace, psychické poruchy
-- **Zdroje**: PubMed, Google Scholar, lékařské weby
-- **Příklady**: "nootropika pro ADHD", "peptidy pro kognici", "léčba deprese"
+### ✅ Hlavní komponenty
+- `unified_main.py` - Hlavní vstupní bod a CLI
+- `unified_config.py` - Centralizovaná konfigurace
+- `unified_server.py` - FastAPI server
+- `unified_research_engine.py` - Research engine s lokálním AI
+- `academic_scraper.py` - Optimalizovaný scraper
+- `local_ai_adapter.py` - Ollama/Llama 3.1 adapter
 
-### 💻 **Technologie** 
-- **Specializace**: AI, blockchain, software development, cybersecurity
-- **Zdroje**: Google Scholar, arXiv, tech weby
-- **Příklady**: "machine learning algoritmy", "blockchain aplikace", "React optimalizace"
+## 🚀 Quick Start
 
-### 🔬 **Věda**
-- **Specializace**: Experimenty, výzkum, data analysis, publikace
-- **Zdroje**: PubMed, Google Scholar, arXiv, vědecké weby
-- **Příklady**: "climate change data", "quantum computing research", "neurověda"
-
-### 💼 **Byznys**
-- **Specializace**: Strategie, marketing, finance, management
-- **Zdroje**: Google Scholar, obchodní weby
-- **Příklady**: "digital marketing trends", "startup strategies", "ROI analysis"
-
-### 🌱 **Ekologie**
-- **Specializace**: Udržitelnost, klimatické změny, green tech
-- **Zdroje**: Google Scholar, environmentální weby
-- **Příklady**: "renewable energy solutions", "carbon footprint reduction"
-
-### 🎓 **Vzdělávání**
-- **Specializace**: Pedagogika, e-learning, vzdělávací technologie
-- **Zdroje**: Google Scholar, vzdělávací weby
-- **Příklady**: "online learning effectiveness", "AI in education"
-
-### 🌐 **Obecná**
-- **Specializace**: Univerzální výzkum pro jakékoliv téma
-- **Zdroje**: Google Scholar, obecné weby
-- **Příklady**: Jakýkoliv výzkumný dotaz
-
-## 🔧 Technické specifikace
-
-### Strategie výzkumu
-- **Quick**: 3 zdroje, 200 tokenů (~$0.02)
-- **Standard**: 5 zdrojů, 400 tokenů (~$0.05) 
-- **Thorough**: 8 zdroje, 600 tokenů (~$0.08)
-
-### AI optimalizace
-- **Gemini Pro**: Nejlevnější Google model
-- **Rate limiting**: 2s mezi požadavky + random jitter
-- **Cache**: 7 dní pro Scholar, 48h pro PubMed
-- **Fallback**: Lokální analýza při dosažení limitů
-
-## 🚀 Rychlé spuštění
-
-### Lokální development
+### 1. Instalace závislostí
 ```bash
-# Klonování
-git clone https://github.com/yourusername/ResearchTool.git
-cd ResearchTool
-
-# Virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
-
-# Instalace závislostí
 pip install -r requirements.txt
-
-# Nastavení environment variables
-cp .env.example .env
-# Editujte .env s vašimi API klíči
-
-# Spuštění
-python main_unified.py --interactive
 ```
 
-### Web UI (FastAPI)
+### 2. Nastavení lokálního AI (Ollama + Llama 3.1)
 ```bash
-python fastapi_app.py
-# Otevřete http://localhost:8000
+# Instalace Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Stažení Llama 3.1 8B (doporučeno pro M1)
+ollama pull llama3.1:8b
+
+# Alternativně rychlejší model pro testing
+ollama pull phi3:mini
 ```
 
-## 📖 Použití
+### 3. Spuštění
 
-### Command Line Interface
+#### CLI Interface
 ```bash
-# Základní výzkum (obecná doména)
-python main_unified.py --query "artificial intelligence trends"
+# Zobrazení konfigurace
+python unified_main.py config show
 
-# Různé domény
-python main_unified.py --query "nootropika pro ADHD" --domain medical
-python main_unified.py --query "blockchain scalability" --domain technology
-python main_unified.py --query "climate change solutions" --domain environment
+# Scraping z CLI
+python unified_main.py scrape "machine learning algorithms" --output results.json
 
-# Různé strategie
-python main_unified.py --query "startup fundraising" --domain business --strategy thorough
+# Spuštění serveru
+python unified_main.py server
 
-# Interaktivní režim
-python main_unified.py --interactive
+# System status
+python unified_main.py status
 ```
 
-### Web API příklady
+#### Web Interface
 ```bash
-# Technologický výzkum
-curl -X POST "http://localhost:8000/research" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "machine learning optimization", "domain": "technology", "strategy": "standard"}'
+# Spuštění unified serveru (doporučeno)
+python unified_main.py server --type unified
 
-# Lékařský výzkum  
-curl -X POST "http://localhost:8000/research" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "nootropika pro kognici", "domain": "medical", "strategy": "thorough"}'
-
-# Obchodní výzkum
-curl -X POST "http://localhost:8000/research" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "digital marketing ROI", "domain": "business", "strategy": "quick"}'
+# Server běží na http://localhost:8000
+# API dokumentace: http://localhost:8000/docs
 ```
 
-## 💰 Nákladová optimalizace
+## 🔧 Konfigurace
 
-### Denní rozpočet: $0.50 = $15/měsíc
-- **Quick výzkumy**: ~25 dotazů/den ($0.02 each)
-- **Standard výzkumy**: ~10 dotazů/den ($0.05 each)  
-- **Thorough výzkumy**: ~6 dotazů/den ($0.08 each)
+Projekt používá unified konfiguraci v `unified_config.py` s automatickým načítáním z environment variables:
 
-### Domain-aware optimalizace
-- **Automatické zdroje**: Každá doména má optimalizované zdroje
-- **Inteligentní klíčová slova**: Domain-specific keyword detection
-- **Adaptivní analýza**: Výsledky formátované podle domény
+```bash
+# API konfigurace
+export API_HOST=localhost
+export API_PORT=8000
+export API_DEBUG=false
 
-## 🏗️ Architektura
+# Ollama konfigurace
+export OLLAMA_HOST=http://localhost:11434
+export PRIMARY_MODEL=llama3.1:8b
 
-```
-├── unified_research_engine.py  # Hlavní engine s Strategy pattern
-├── gemini_manager.py           # Ultra-optimalizovaný AI manager  
-├── text_processing_utils.py    # Univerzální text processor
-├── academic_scraper.py         # Scholar + PubMed scraping
-├── database_manager.py         # Azure Cosmos DB manager
-├── fastapi_app.py             # Web UI a API
-├── main_unified.py            # CLI interface
-└── config.py                  # Univerzální konfigurace
+# Environment
+export ENVIRONMENT=production
 ```
 
-## 🌐 Použití pro různé domény
+## 📊 Podporované zdroje
 
-### Příklady dotazů
+- **PubMed** - Medicínské výzkumy
+- **arXiv** - Vědecké preprinty
+- **Semantic Scholar** - Akademické publikace
+- **OpenAlex** - Otevřené vědecké data
+- **Wikipedia** - Obecné informace
+- **CrossRef** - Publikační metadata
 
-**🏥 Medicína:**
-- "nootropika pro ADHD účinnost"
-- "peptidy pro růst svalové hmoty"
-- "léčba úzkosti bez vedlejších účinků"
+## 🎯 Use Cases
 
-**💻 Technologie:**
-- "best practices for React performance"
-- "blockchain scalability solutions 2024"
-- "machine learning deployment strategies"
+### 🏥 Medicína
+```bash
+python unified_main.py scrape "nootropika pro ADHD 2024"
+```
 
-**🔬 Věda:**
-- "climate change impact on biodiversity"
-- "quantum computing breakthroughs"
-- "CRISPR gene editing safety"
+### 💻 Technologie
+```bash
+python unified_main.py scrape "React performance optimization"
+```
 
-**💼 Byznys:**
-- "remote work productivity optimization"
-- "startup valuation methods"
-- "digital transformation ROI"
+### 🔬 Věda
+```bash
+python unified_main.py scrape "climate change machine learning"
+```
 
-**🌱 Ekologie:**
-- "sustainable energy storage solutions"
-- "carbon capture technologies"
-- "circular economy implementation"
+## 🧪 Testing
 
-**🎓 Vzdělávání:**
-- "AI tools in modern education"
-- "online learning engagement strategies"
-- "educational gamification benefits"
+```bash
+# Spuštění testů
+python unified_main.py test
 
-## 📊 Výsledné úspory
+# Nebo přímo pytest
+pytest -v
+```
 
-| Metrika | Před | Po | Úspora |
-|---------|------|----|---------| 
-| **Měsíční náklady** | $20+ | $15 | **75%** |
-| **Tokeny per request** | 2000+ | 400 | **80%** |
-| **Cache hit rate** | 30% | 90% | **200%** |
-| **Podporované domény** | 1 | 7+ | **700%** |
+## 📈 Performance & Optimalizace
 
----
+### M1 MacBook Air optimalizace:
+- **RAM management**: Inteligentní model switching
+- **Energy efficiency**: Auto-unload timeout
+- **Neural Engine**: GPU acceleration pro Llama 3.1
+- **Memory mapping**: Optimalizace pro větší modely
 
-**Vytvořeno s ❤️ pro efektivní a levný akademický výzkum ve všech oblastech**
+### Caching:
+- Agresivní disk cache pro AI odpovědi
+- ETags pro HTTP cache
+- Persistent cache přes restarty
+
+## 🔒 Privacy & Security
+
+- **100% offline**: Žádné externí API calls
+- **Lokální AI**: Všechny dotazy zůstávají na zařízení
+- **No logging**: Žádné logování uživatelských dotazů
+- **Local storage**: Všechna data lokálně
+
+## 📁 Struktura projektu
+
+```
+├── unified_main.py          # Hlavní vstupní bod
+├── unified_config.py        # Centralizovaná konfigurace
+├── unified_server.py        # FastAPI server
+├── unified_research_engine.py # Research engine
+├── academic_scraper.py      # Optimalizovaný scraper
+├── local_ai_adapter.py      # Ollama adapter
+├── cache_manager.py         # Cache management
+├── requirements.txt         # Python závislosti
+└── tests/                   # Test suite
+```
+
+## 🚀 Development
+
+```bash
+# Development mode
+python unified_main.py server --env development
+
+# Production deployment
+python unified_main.py server --env production
+```
+
+## 📚 API Documentation
+
+Po spuštění serveru je dostupná interaktivní dokumentace:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## 🤝 Contributing
+
+1. Fork repository
+2. Vytvořte feature branch
+3. Commitujte změny
+4. Vytvořte Pull Request
+
+## 📄 License
+
+MIT License - viz LICENSE soubor pro detaily.
