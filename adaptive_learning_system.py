@@ -1,437 +1,440 @@
-Adaptive Learning & Personalization System
-Učí se z vašich vzorů výzkumu a personalizuje výsledky pro vaše specifické potřeby
+"""
+Enhanced Adaptive Learning System - Pokročilý systém učení s AI personalizací
+Implementuje učení z uživatelských vzorů, personalizované AI prompty a generování insights
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
-from typing import Dict, List, Optional, Any, Set
+import numpy as np
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
+import hashlib
 from collections import defaultdict, Counter
-from datetime import datetime, timedelta
-import sqlite3
 
 try:
-    from unified_config import get_config
+    from unified_cache_system import get_unified_cache
     from local_ai_adapter import M1OptimizedOllamaClient
-    CONFIG_AVAILABLE = True
+    from peptide_prompts import PEPTIDE_RESEARCH_PROMPTS, BIOHACKING_PROMPTS
+    DEPS_AVAILABLE = True
 except ImportError:
-    CONFIG_AVAILABLE = False
+    DEPS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 @dataclass
-class UserPreference:
-    """Uživatelská preference pro personalizaci"""
-    category: str  # 'peptide_type', 'research_focus', 'detail_level'
-    value: str
-    confidence: float  # 0.0 - 1.0
-    frequency: int
-    last_updated: float
+class UserLearningProfile:
+    """Rozšířený learning profil uživatele"""
+    user_id: str
+    learning_style: str = "balanced"  # visual, analytical, practical, balanced
+    expertise_level: str = "intermediate"
+    preferred_detail_level: str = "medium"  # brief, medium, detailed, expert
+    successful_query_patterns: List[str] = field(default_factory=list)
+    failed_query_patterns: List[str] = field(default_factory=list)
+    topic_expertise: Dict[str, float] = field(default_factory=dict)  # topic -> expertise score 0-1
+    response_preferences: Dict[str, float] = field(default_factory=dict)
+    learning_velocity: float = 0.5  # How fast user learns (0-1)
+    curiosity_score: float = 0.7  # How exploratory vs focused (0-1)
 
 @dataclass
-class ResearchSession:
-    """Záznam research session pro learning"""
-    session_id: str
-    timestamp: float
-    queries: List[str]
-    sources_used: List[str]
-    time_spent_seconds: float
-    user_satisfaction: Optional[float] = None
-    follow_up_queries: List[str] = field(default_factory=list)
+class PersonalizedPrompt:
+    """Personalizovaný AI prompt"""
+    base_prompt: str
+    user_adaptations: List[str]
+    complexity_level: str
+    focus_areas: List[str]
+    generated_prompt: str
 
-class PersonalizationEngine:
-    """Engine pro personalizaci výsledků na základě učení"""
+class EnhancedAdaptiveLearningSystem:
+    """
+    Pokročilý adaptivní learning systém s AI personalizací
+    """
 
-    def __init__(self, user_profile_dir: Optional[Path] = None):
-        self.profile_dir = user_profile_dir or Path("cache/user_profile")
-        self.profile_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self):
+        self.user_profiles = {}
+        self.learning_patterns = {}
+        self.prompt_templates = {}
+        self.ai_client = None
+        self.cache = get_unified_cache()
 
-        self.db_path = self.profile_dir / "user_profile.db"
-        self._init_database()
+        # Learning analytics
+        self.pattern_analyzer = PatternAnalyzer()
+        self.insight_generator = InsightGenerator()
+        self.prompt_personalizer = PromptPersonalizer()
 
-        # In-memory caches
-        self.preferences: Dict[str, UserPreference] = {}
-        self.research_patterns: Dict[str, int] = defaultdict(int)
-        self.peptide_interests: Counter = Counter()
-        self.preferred_sources: Counter = Counter()
+        # Data storage
+        self.data_dir = Path("data/adaptive_learning")
+        self.data_dir.mkdir(exist_ok=True)
 
-        # Load existing preferences
-        asyncio.create_task(self._load_preferences())
+        # Initialize base prompt templates
+        self._initialize_prompt_templates()
 
-    def _init_database(self):
-        """Initialize SQLite database for user profile"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS preferences (
-                    category TEXT,
-                    value TEXT,
-                    confidence REAL,
-                    frequency INTEGER,
-                    last_updated REAL,
-                    PRIMARY KEY (category, value)
-                )
-            """)
+    def _initialize_prompt_templates(self):
+        """Inicializace základních prompt šablon"""
+        self.prompt_templates = {
+            "beginner": {
+                "research": """Explain {topic} in simple terms suitable for a beginner:
+1. What is it and what does it do?
+2. Is it safe for beginners?
+3. Basic dosing information
+4. Key things to know before starting
+5. Common mistakes to avoid
 
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS research_sessions (
-                    session_id TEXT PRIMARY KEY,
-                    timestamp REAL,
-                    queries TEXT,
-                    sources_used TEXT,
-                    time_spent_seconds REAL,
-                    user_satisfaction REAL,
-                    follow_up_queries TEXT
-                )
-            """)
+Use simple language and focus on safety.""",
 
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS learning_insights (
-                    insight_type TEXT,
-                    insight_data TEXT,
-                    confidence REAL,
-                    created_at REAL
-                )
-            """)
+                "safety": """Provide beginner-friendly safety information about {topic}:
+1. Is this safe for beginners?
+2. What are the most common side effects?
+3. What should I watch out for?
+4. When should I stop using it?
+5. Should I consult a doctor?
 
-    async def _load_preferences(self):
-        """Load existing preferences from database"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT * FROM preferences")
-            for row in cursor.fetchall():
-                category, value, confidence, frequency, last_updated = row
-                key = f"{category}:{value}"
-                self.preferences[key] = UserPreference(
-                    category=category,
-                    value=value,
-                    confidence=confidence,
-                    frequency=frequency,
-                    last_updated=last_updated
-                )
+Keep explanations simple and emphasize safety."""
+            },
 
-    async def learn_from_query(self, query: str, sources_used: List[str],
-                             time_spent: float, follow_ups: List[str] = None):
-        """Učí se z uživatelského dotazu a chování"""
+            "intermediate": {
+                "research": """Provide comprehensive information about {topic}:
+1. Mechanism of action and pharmacology
+2. Evidence-based benefits and effects
+3. Optimal dosing protocols and timing
+4. Potential side effects and contraindications
+5. Interactions with other substances
+6. Quality of research evidence
+
+Balance detail with practicality.""",
+
+                "safety": """Analyze the safety profile of {topic}:
+1. Side effect profile and frequency
+2. Contraindications and warnings
+3. Drug and supplement interactions
+4. Special populations considerations
+5. Long-term safety data
+6. Risk mitigation strategies
+
+Provide evidence-based assessment."""
+            },
+
+            "expert": {
+                "research": """Provide expert-level analysis of {topic}:
+1. Detailed pharmacokinetics and pharmacodynamics
+2. Molecular mechanisms and receptor interactions
+3. Clinical trial data and meta-analyses
+4. Dosing optimization and cycling protocols
+5. Synergistic combinations and stacking
+6. Research gaps and future directions
+7. Regulatory status and legal considerations
+
+Include technical details and citations.""",
+
+                "safety": """Conduct expert safety analysis of {topic}:
+1. Comprehensive adverse event profile
+2. Mechanism-based toxicity predictions
+3. Population pharmacokinetics variations
+4. Complex drug interaction analysis
+5. Long-term safety extrapolations
+6. Risk-benefit optimization strategies
+7. Monitoring parameters and biomarkers
+
+Provide clinical-grade assessment."""
+            }
+        }
+
+    async def __aenter__(self):
+        """Initialize learning system"""
+        if DEPS_AVAILABLE:
+            self.ai_client = M1OptimizedOllamaClient()
+            await self.ai_client.__aenter__()
+
+        await self._load_learning_data()
+        logger.info("✅ Enhanced Adaptive Learning System initialized")
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Cleanup"""
+        if self.ai_client:
+            await self.ai_client.__aexit__(exc_type, exc_val, exc_tb)
+        await self._save_learning_data()
+
+    async def learn_from_interaction(
+        self,
+        user_id: str,
+        query: str,
+        response: Dict[str, Any],
+        user_feedback: Optional[Dict] = None,
+        success_metrics: Optional[Dict] = None
+    ):
+        """
+        Učení z uživatelské interakce
+        """
+        profile = await self._get_learning_profile(user_id)
 
         # Analyze query patterns
-        await self._analyze_query_patterns(query)
+        await self._analyze_query_pattern(profile, query, response, success_metrics)
 
-        # Learn source preferences
-        for source in sources_used:
-            self.preferred_sources[source] += 1
-            await self._update_preference('preferred_source', source, 0.1)
+        # Process user feedback if provided
+        if user_feedback:
+            await self._process_user_feedback(profile, query, response, user_feedback)
 
-        # Learn from follow-up queries (indicates interest depth)
-        if follow_ups:
-            for follow_up in follow_ups:
-                await self._learn_interest_depth(query, follow_up)
+        # Update expertise levels
+        await self._update_topic_expertise(profile, query, success_metrics)
 
-        # Store research session
-        session = ResearchSession(
-            session_id=f"session_{int(time.time())}",
-            timestamp=time.time(),
-            queries=[query] + (follow_ups or []),
-            sources_used=sources_used,
-            time_spent_seconds=time_spent,
-            follow_up_queries=follow_ups or []
+        # Generate learning insights
+        insights = await self._generate_learning_insights(profile, query, response)
+
+        # Update learning velocity and curiosity
+        await self._update_learning_characteristics(profile, query, response, user_feedback)
+
+        logger.info(f"📚 Learning updated for user {user_id}")
+        return insights
+
+    async def generate_personalized_prompt(
+        self,
+        user_id: str,
+        prompt_type: str,
+        topic: str,
+        context: Optional[Dict] = None
+    ) -> PersonalizedPrompt:
+        """
+        Generování personalizovaného AI promptu
+        """
+        profile = await self._get_learning_profile(user_id)
+
+        # Select base template
+        base_template = self._select_base_template(profile, prompt_type)
+
+        # Personalize prompt based on user profile
+        personalized_prompt = await self._personalize_prompt(
+            base_template, profile, topic, context
         )
 
-        await self._store_research_session(session)
+        return personalized_prompt
 
-    async def _analyze_query_patterns(self, query: str):
-        """Analyzuje vzory v dotazech pro učení preferencí"""
-        query_lower = query.lower()
+    async def _get_learning_profile(self, user_id: str) -> UserLearningProfile:
+        """Získání nebo vytvoření learning profilu"""
+        if user_id not in self.user_profiles:
+            self.user_profiles[user_id] = UserLearningProfile(user_id=user_id)
+        return self.user_profiles[user_id]
 
-        # Peptide preferences
-        peptide_keywords = {
-            'bpc': 'bpc-157', 'tb500': 'tb-500', 'gh': 'growth_hormone',
-            'ghrp': 'ghrp', 'cjc': 'cjc-1295', 'ipamorelin': 'ipamorelin',
-            'thymosin': 'thymosin', 'melanotan': 'melanotan'
+    async def _analyze_query_pattern(
+        self,
+        profile: UserLearningProfile,
+        query: str,
+        response: Dict[str, Any],
+        success_metrics: Optional[Dict]
+    ):
+        """Analýza vzorů dotazů"""
+
+        # Extract query characteristics
+        query_features = {
+            "length": len(query.split()),
+            "complexity": await self._assess_query_complexity(query),
+            "topic": await self._extract_topic(query),
+            "intent": await self._classify_intent(query)
         }
 
-        for keyword, peptide in peptide_keywords.items():
-            if keyword in query_lower:
-                self.peptide_interests[peptide] += 1
-                await self._update_preference('peptide_interest', peptide, 0.2)
+        # Determine if query was successful
+        success = self._determine_success(response, success_metrics)
 
-        # Research focus preferences
-        focus_keywords = {
-            'dosage': 'dosing_protocols',
-            'side effects': 'safety_focus',
-            'mechanism': 'scientific_depth',
-            'benefits': 'outcomes_focus',
-            'stack': 'combination_research',
-            'clinical': 'clinical_evidence_preference'
-        }
-
-        for keyword, focus in focus_keywords.items():
-            if keyword in query_lower:
-                await self._update_preference('research_focus', focus, 0.15)
-
-        # Detail level preferences
-        if len(query.split()) > 20:
-            await self._update_preference('detail_level', 'comprehensive', 0.1)
-        elif len(query.split()) < 5:
-            await self._update_preference('detail_level', 'concise', 0.1)
-
-    async def _update_preference(self, category: str, value: str, confidence_delta: float):
-        """Update user preference with learning"""
-        key = f"{category}:{value}"
-
-        if key in self.preferences:
-            pref = self.preferences[key]
-            pref.confidence = min(1.0, pref.confidence + confidence_delta)
-            pref.frequency += 1
-            pref.last_updated = time.time()
+        if success:
+            profile.successful_query_patterns.append(json.dumps(query_features))
         else:
-            self.preferences[key] = UserPreference(
-                category=category,
-                value=value,
-                confidence=confidence_delta,
-                frequency=1,
-                last_updated=time.time()
+            profile.failed_query_patterns.append(json.dumps(query_features))
+
+        # Keep only recent patterns (last 100)
+        profile.successful_query_patterns = profile.successful_query_patterns[-100:]
+        profile.failed_query_patterns = profile.failed_query_patterns[-100:]
+
+    async def _personalize_prompt(
+        self,
+        base_template: str,
+        profile: UserLearningProfile,
+        topic: str,
+        context: Optional[Dict]
+    ) -> PersonalizedPrompt:
+        """Personalizace promptu podle profilu uživatele"""
+
+        # Start with base template
+        prompt = base_template.format(topic=topic)
+
+        adaptations = []
+
+        # Adjust for learning style
+        if profile.learning_style == "visual":
+            adaptations.append("Include visual descriptions and analogies")
+            prompt += "\n\nUse visual analogies and descriptive language."
+
+        elif profile.learning_style == "analytical":
+            adaptations.append("Focus on data, studies, and logical analysis")
+            prompt += "\n\nEmphasize scientific data, studies, and logical reasoning."
+
+        elif profile.learning_style == "practical":
+            adaptations.append("Focus on practical applications and protocols")
+            prompt += "\n\nFocus on practical applications and step-by-step protocols."
+
+        # Adjust for curiosity level
+        if profile.curiosity_score > 0.7:
+            adaptations.append("Include related topics and future directions")
+            prompt += "\n\nAlso mention related topics and emerging research directions."
+
+        # Adjust for expertise in this topic
+        topic_expertise = profile.topic_expertise.get(topic, 0.5)
+        if topic_expertise > 0.8:
+            adaptations.append("Provide advanced technical details")
+            prompt += "\n\nInclude advanced technical details and nuances."
+        elif topic_expertise < 0.3:
+            adaptations.append("Keep explanations simple and basic")
+            prompt += "\n\nKeep explanations simple and avoid jargon."
+
+        # Add user-specific preferences
+        if "safety_focused" in profile.response_preferences:
+            if profile.response_preferences["safety_focused"] > 0.7:
+                adaptations.append("Emphasize safety considerations")
+                prompt += "\n\nPay special attention to safety considerations and warnings."
+
+        return PersonalizedPrompt(
+            base_prompt=base_template,
+            user_adaptations=adaptations,
+            complexity_level=profile.expertise_level,
+            focus_areas=list(profile.topic_expertise.keys())[:5],
+            generated_prompt=prompt
+        )
+
+    def _select_base_template(self, profile: UserLearningProfile, prompt_type: str) -> str:
+        """Výběr základní šablony podle profilu"""
+
+        # Determine effective expertise level
+        if profile.expertise_level == "beginner":
+            level = "beginner"
+        elif profile.expertise_level == "expert":
+            level = "expert"
+        else:
+            level = "intermediate"
+
+        return self.prompt_templates[level].get(prompt_type,
+                                                self.prompt_templates[level]["research"])
+
+class PatternAnalyzer:
+    """Analyzér vzorů v uživatelském chování"""
+
+    def __init__(self):
+        self.pattern_cache = {}
+
+    async def analyze_success_patterns(self, successful_queries: List[str]) -> Dict[str, Any]:
+        """Analýza úspěšných vzorů"""
+        if not successful_queries:
+            return {}
+
+        patterns = []
+        for query_json in successful_queries:
+            try:
+                pattern = json.loads(query_json)
+                patterns.append(pattern)
+            except:
+                continue
+
+        if not patterns:
+            return {}
+
+        # Analyze common characteristics
+        common_features = {
+            "avg_length": np.mean([p["length"] for p in patterns]),
+            "common_topics": Counter(p["topic"] for p in patterns).most_common(5),
+            "common_intents": Counter(p["intent"] for p in patterns).most_common(3),
+            "complexity_range": (
+                min(p["complexity"] for p in patterns),
+                max(p["complexity"] for p in patterns)
             )
+        }
 
-        # Persist to database
-        with sqlite3.connect(self.db_path) as conn:
-            pref = self.preferences[key]
-            conn.execute("""
-                INSERT OR REPLACE INTO preferences 
-                (category, value, confidence, frequency, last_updated)
-                VALUES (?, ?, ?, ?, ?)
-            """, (pref.category, pref.value, pref.confidence, pref.frequency, pref.last_updated))
+        return common_features
 
-    async def _learn_interest_depth(self, original_query: str, follow_up: str):
-        """Learn from follow-up queries to understand interest depth"""
-        # If user asks follow-up questions, they're deeply interested in the topic
-        original_lower = original_query.lower()
-        follow_up_lower = follow_up.lower()
+class InsightGenerator:
+    """Generátor insights pro learning systém"""
 
-        # Extract common elements
-        original_words = set(original_lower.split())
-        follow_up_words = set(follow_up_lower.split())
-        common_words = original_words & follow_up_words
+    async def generate_insights(
+        self,
+        profile: UserLearningProfile,
+        recent_interactions: List[Dict]
+    ) -> List[Dict[str, Any]]:
+        """Generování personalizovaných insights"""
 
-        # If there's significant overlap, user is diving deeper
-        if len(common_words) >= 2:
-            await self._update_preference('research_depth', 'thorough', 0.2)
+        insights = []
 
-    async def _store_research_session(self, session: ResearchSession):
-        """Store research session for analysis"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO research_sessions
-                (session_id, timestamp, queries, sources_used, time_spent_seconds, 
-                 user_satisfaction, follow_up_queries)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                session.session_id,
-                session.timestamp,
-                json.dumps(session.queries),
-                json.dumps(session.sources_used),
-                session.time_spent_seconds,
-                session.user_satisfaction,
-                json.dumps(session.follow_up_queries)
-            ))
-
-    async def get_personalized_sources(self, query: str, max_sources: int = 5) -> List[str]:
-        """Získá personalizované zdroje na základě učení"""
-
-        # Start with user's preferred sources
-        preferred = []
-        for source, count in self.preferred_sources.most_common():
-            if len(preferred) < max_sources // 2:  # Half from preferences
-                preferred.append(source)
-
-        # Add query-specific sources
-        query_lower = query.lower()
-
-        # Peptide-specific source preferences
-        if any(p in query_lower for p in ['peptide', 'bpc', 'tb500', 'gh']):
-            peptide_sources = ['peptide_guide', 'pubmed', 'clinicaltrials']
-            for source in peptide_sources:
-                if source not in preferred and len(preferred) < max_sources:
-                    preferred.append(source)
-
-        # Fill remaining slots with high-quality defaults
-        default_sources = ['examine_com', 'pubmed', 'selfhacked', 'mayo_clinic']
-        for source in default_sources:
-            if source not in preferred and len(preferred) < max_sources:
-                preferred.append(source)
-
-        return preferred[:max_sources]
-
-    async def personalize_ai_prompt(self, base_prompt: str, query: str) -> str:
-        """Personalizuje AI prompt na základě uživatelských preferencí"""
-
-        personalization_additions = []
-
-        # Detail level preference
-        detail_pref = self._get_preference('detail_level')
-        if detail_pref and detail_pref.confidence > 0.3:
-            if detail_pref.value == 'comprehensive':
-                personalization_additions.append("Provide comprehensive, detailed analysis with mechanisms and citations.")
-            elif detail_pref.value == 'concise':
-                personalization_additions.append("Keep response concise and focus on key practical points.")
-
-        # Research focus preferences
-        focus_prefs = [p for p in self.preferences.values()
-                      if p.category == 'research_focus' and p.confidence > 0.2]
-
-        if focus_prefs:
-            focus_areas = [p.value.replace('_', ' ') for p in focus_prefs]
-            personalization_additions.append(f"Pay special attention to: {', '.join(focus_areas)}.")
-
-        # Safety focus if learned
-        safety_pref = self._get_preference('research_focus', 'safety_focus')
-        if safety_pref and safety_pref.confidence > 0.3:
-            personalization_additions.append("Include detailed safety analysis and contraindications.")
-
-        # Add personalization to prompt
-        if personalization_additions:
-            personalized_prompt = base_prompt + "\n\nPersonalization notes:\n" + "\n".join(personalization_additions)
-            return personalized_prompt
-
-        return base_prompt
-
-    def _get_preference(self, category: str, value: str = None) -> Optional[UserPreference]:
-        """Get specific preference"""
-        if value:
-            key = f"{category}:{value}"
-            return self.preferences.get(key)
-        else:
-            # Get strongest preference in category
-            category_prefs = [p for p in self.preferences.values() if p.category == category]
-            if category_prefs:
-                return max(category_prefs, key=lambda p: p.confidence)
-        return None
-
-    async def generate_insights(self) -> Dict[str, Any]:
-        """Generuje insights o uživatelských preferencích pomocí AI"""
-
-        if not CONFIG_AVAILABLE or not self.preferences:
-            return {"insights": "Insufficient data for insights"}
-
-        # Prepare data for AI analysis
-        preference_summary = {}
-        for pref in self.preferences.values():
-            if pref.category not in preference_summary:
-                preference_summary[pref.category] = []
-            preference_summary[pref.category].append({
-                'value': pref.value,
-                'confidence': pref.confidence,
-                'frequency': pref.frequency
+        # Learning velocity insight
+        if profile.learning_velocity > 0.8:
+            insights.append({
+                "type": "learning_acceleration",
+                "message": "You're learning quickly! Consider exploring advanced topics.",
+                "suggestions": ["Try expert-level queries", "Explore related compounds"]
+            })
+        elif profile.learning_velocity < 0.3:
+            insights.append({
+                "type": "learning_support",
+                "message": "Take your time to understand basics before advancing.",
+                "suggestions": ["Review fundamental concepts", "Use simpler queries"]
             })
 
-        insights_prompt = f"""
-        Analyze this user's research patterns and generate personalized insights:
-        
-        Preferences: {json.dumps(preference_summary, indent=2)}
-        Top peptide interests: {dict(self.peptide_interests.most_common(5))}
-        Preferred sources: {dict(self.preferred_sources.most_common(5))}
-        
-        Generate insights about:
-        1. Primary research interests
-        2. Preferred information depth
-        3. Safety consciousness level
-        4. Recommended research areas to explore
-        5. Potential knowledge gaps to address
-        
-        Keep insights practical and actionable.
-        """
+        # Topic expertise insights
+        top_topics = sorted(profile.topic_expertise.items(),
+                          key=lambda x: x[1], reverse=True)[:3]
 
-        try:
-            async with M1OptimizedOllamaClient() as client:
-                insights = await client.generate_optimized(
-                    insights_prompt,
-                    priority="balanced",
-                    use_specialized_prompt=False
-                )
+        if top_topics:
+            insights.append({
+                "type": "expertise_areas",
+                "message": f"Your strongest areas: {', '.join([t[0] for t in top_topics])}",
+                "suggestions": [f"Explore advanced aspects of {top_topics[0][0]}"]
+            })
 
-                return {
-                    "insights": insights,
-                    "preference_summary": preference_summary,
-                    "top_interests": dict(self.peptide_interests.most_common(5)),
-                    "generated_at": datetime.now().isoformat()
-                }
+        return insights
 
-        except Exception as e:
-            logger.error(f"Failed to generate insights: {e}")
-            return {"error": f"Insight generation failed: {str(e)}"}
+class PromptPersonalizer:
+    """Personalizace AI promptů"""
 
-    def get_learning_stats(self) -> Dict[str, Any]:
-        """Získá statistiky učení"""
-        return {
-            'total_preferences': len(self.preferences),
-            'high_confidence_preferences': len([p for p in self.preferences.values() if p.confidence > 0.5]),
-            'peptide_interests_count': len(self.peptide_interests),
-            'preferred_sources_count': len(self.preferred_sources),
-            'most_researched_peptide': self.peptide_interests.most_common(1)[0] if self.peptide_interests else None,
-            'most_used_source': self.preferred_sources.most_common(1)[0] if self.preferred_sources else None,
-            'learning_categories': list(set(p.category for p in self.preferences.values()))
-        }
+    def __init__(self):
+        self.personalization_rules = {}
 
-class AdaptiveResponseOptimizer:
-    """Optimalizuje odpovědi na základě naučených preferencí"""
+    async def create_personalized_research_prompt(
+        self,
+        base_prompt: str,
+        user_profile: UserLearningProfile,
+        topic: str
+    ) -> str:
+        """Vytvoření personalizovaného research promptu"""
 
-    def __init__(self, personalization_engine: PersonalizationEngine):
-        self.personalization = personalization_engine
+        # Start with base
+        personalized = base_prompt
 
-    async def optimize_response_format(self, response: str, query: str) -> str:
-        """Optimalizuje formát odpovědi na základě preferencí"""
+        # Add user-specific modifiers
+        modifiers = []
 
-        # Get user preferences
-        detail_pref = self.personalization._get_preference('detail_level')
-        safety_pref = self.personalization._get_preference('research_focus', 'safety_focus')
+        if user_profile.learning_style == "practical":
+            modifiers.append("Focus on practical applications and protocols")
 
-        optimizations = []
+        if user_profile.curiosity_score > 0.7:
+            modifiers.append("Include related research directions")
 
-        # Add safety warnings if user is safety-focused
-        if safety_pref and safety_pref.confidence > 0.3:
-            if 'warning' not in response.lower() and 'side effect' not in response.lower():
-                optimizations.append("⚠️ SAFETY NOTE: Always consult healthcare professionals before using any peptides or supplements.")
+        # Apply expertise adjustments
+        topic_expertise = user_profile.topic_expertise.get(topic, 0.5)
+        if topic_expertise > 0.7:
+            modifiers.append("Provide technical details and mechanisms")
+        elif topic_expertise < 0.4:
+            modifiers.append("Use simple language and explain basics")
 
-        # Add structure for comprehensive preference
-        if detail_pref and detail_pref.value == 'comprehensive' and detail_pref.confidence > 0.3:
-            if not any(marker in response for marker in ['##', '**', '1.', '2.']):
-                # Add structure markers
-                optimizations.append("📋 [Response has been structured for comprehensive analysis]")
+        # Combine modifiers
+        if modifiers:
+            personalized += f"\n\nPersonalization: {'. '.join(modifiers)}."
 
-        # Apply optimizations
-        if optimizations:
-            optimized_response = "\n".join(optimizations) + "\n\n" + response
-            return optimized_response
+        return personalized
 
-        return response
-
-# Global personalization instance
-_personalization_instance = None
-
-def get_personalization_engine() -> PersonalizationEngine:
-    """Get global personalization engine instance"""
-    global _personalization_instance
-    if _personalization_instance is None:
-        _personalization_instance = PersonalizationEngine()
-    return _personalization_instance
-
-# Convenience functions
-async def learn_from_research_session(query: str, sources: List[str], time_spent: float, follow_ups: List[str] = None):
-    """Learn from a research session"""
-    engine = get_personalization_engine()
-    await engine.learn_from_query(query, sources, time_spent, follow_ups)
-
-async def get_personalized_research_setup(query: str) -> Dict[str, Any]:
-    """Get personalized research setup"""
-    engine = get_personalization_engine()
-
-    sources = await engine.get_personalized_sources(query)
-    base_prompt = f"Research this topic: {query}"
-    personalized_prompt = await engine.personalize_ai_prompt(base_prompt, query)
-
-    return {
-        'personalized_sources': sources,
-        'personalized_prompt': personalized_prompt,
-        'user_insights': await engine.generate_insights()
-    }
+# Export
+__all__ = [
+    'EnhancedAdaptiveLearningSystem',
+    'UserLearningProfile',
+    'PersonalizedPrompt',
+    'PatternAnalyzer',
+    'InsightGenerator',
+    'PromptPersonalizer'
+]

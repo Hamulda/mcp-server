@@ -1,5 +1,6 @@
-Comprehensive Test Suite - Komplexní testování celého biohacking research systému
-Testuje všechny komponenty, integraci a výkon na M1 MacBooku
+"""
+Updated Comprehensive Test Suite - Aktualizované testování pro unified systém
+Testuje nové komponenty, integraci a výkon po optimalizaci
 """
 
 import asyncio
@@ -10,19 +11,15 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
-import tempfile
-import shutil
 
-# Import všech komponent pro testování
+# Import updated components
 try:
-    from biohacking_research_engine import BiohackingResearchEngine, BiohackingResearchRequest, CompoundProfile
-    from advanced_source_aggregator import AdvancedSourceAggregator, SourceConfig, SearchResult
-    from intelligent_research_orchestrator import IntelligentResearchOrchestrator, UserProfile
+    from main import UnifiedBiohackingResearchTool
+    from enhanced_research_orchestrator import EnhancedIntelligentOrchestrator
+    from unified_cache_system import get_unified_cache
+    from adaptive_learning_system import EnhancedAdaptiveLearningSystem
     from quality_assessment_system import QualityAssessmentSystem
-    from project_cleanup_optimizer import ProjectCleanupOptimizer
-    from unified_research_engine import M1OptimizedResearchEngine
     from local_ai_adapter import M1OptimizedOllamaClient
-    from peptide_prompts import PEPTIDE_RESEARCH_PROMPTS, BIOHACKING_PROMPTS
     COMPONENTS_AVAILABLE = True
 except ImportError as e:
     COMPONENTS_AVAILABLE = False
@@ -30,8 +27,8 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
-class ComprehensiveTestSuite:
-    """Komplexní testovací suite pro celý systém"""
+class UpdatedComprehensiveTestSuite:
+    """Aktualizovaná testovací suite pro unified systém"""
 
     def __init__(self):
         self.test_results = {
@@ -45,52 +42,59 @@ class ComprehensiveTestSuite:
             "errors": []
         }
 
-        # Test data
+        # Updated test data for biohacking focus
         self.test_compounds = [
             "BPC-157",
             "TB-500",
             "GHRP-6",
             "Modafinil",
             "NAD+",
-            "Metformin"
+            "Metformin",
+            "Rapamycin",
+            "NMN"
         ]
 
         self.test_queries = [
             "BPC-157 dosing protocol safety",
             "TB-500 healing benefits research",
             "GHRP-6 growth hormone release",
-            "Modafinil cognitive enhancement",
-            "NAD+ longevity anti-aging",
-            "Metformin life extension mechanisms"
+            "Modafinil cognitive enhancement mechanisms",
+            "NAD+ longevity anti-aging protocols",
+            "Metformin life extension dosing",
+            "Rapamycin autophagy activation",
+            "NMN bioavailability administration"
         ]
 
-    async def run_full_test_suite(self) -> Dict[str, Any]:
-        """Spuštění kompletní testovací suite"""
+    async def run_updated_test_suite(self) -> Dict[str, Any]:
+        """Spuštění aktualizované testovací suite"""
 
-        logger.info("🧪 Starting comprehensive test suite...")
+        logger.info("🧪 Starting updated comprehensive test suite...")
         start_time = time.time()
 
         try:
-            # 1. Component tests
-            await self._test_individual_components()
+            # 1. Test unified main interface
+            await self._test_unified_main_interface()
 
-            # 2. Integration tests
-            await self._test_system_integration()
+            # 2. Test enhanced orchestrator
+            await self._test_enhanced_orchestrator()
 
-            # 3. Performance tests
-            await self._test_performance()
+            # 3. Test adaptive learning system
+            await self._test_adaptive_learning()
 
-            # 4. Memory and resource tests
-            await self._test_resource_usage()
+            # 4. Test unified cache system
+            await self._test_unified_cache()
 
-            # 5. Error handling tests
+            # 5. Test quality assessment
+            await self._test_quality_assessment()
+
+            # 6. Test performance optimizations
+            await self._test_performance_optimizations()
+
+            # 7. Test error handling and edge cases
             await self._test_error_handling()
 
-            # 6. End-to-end workflow tests
-            await self._test_end_to_end_workflows()
-
-            # 7. AI integration tests
-            await self._test_ai_integration()
+            # 8. Test personalization features
+            await self._test_personalization()
 
             execution_time = time.time() - start_time
             self.test_results["total_execution_time"] = execution_time
@@ -101,7 +105,7 @@ class ComprehensiveTestSuite:
                 success_rate = self.test_results["tests_passed"] / total_tests
                 self.test_results["success_rate"] = success_rate
 
-            logger.info(f"✅ Test suite completed in {execution_time:.2f}s")
+            logger.info(f"✅ Updated test suite completed in {execution_time:.2f}s")
             logger.info(f"📊 Results: {self.test_results['tests_passed']}/{total_tests} tests passed")
 
             return self.test_results
@@ -111,208 +115,311 @@ class ComprehensiveTestSuite:
             self.test_results["errors"].append(f"Test suite failure: {str(e)}")
             return self.test_results
 
-    async def _test_individual_components(self):
-        """Testování jednotlivých komponent"""
+    async def _test_unified_main_interface(self):
+        """Test hlavního unified rozhraní"""
 
-        logger.info("🔧 Testing individual components...")
+        logger.info("🔧 Testing unified main interface...")
 
-        component_results = {}
+        test_results = {}
 
-        # Test BiohackingResearchEngine
         if COMPONENTS_AVAILABLE:
             try:
-                async with BiohackingResearchEngine() as engine:
-                    test_request = BiohackingResearchRequest(
-                        compound="BPC-157",
-                        research_type="safety"
+                # Test basic research functionality
+                async with UnifiedBiohackingResearchTool("test_user") as tool:
+                    start_time = time.time()
+
+                    result = await tool.research(
+                        "BPC-157 basic information",
+                        research_type="quick",
+                        output_format="brief"
                     )
 
-                    start_time = time.time()
-                    result = await engine.research_compound(test_request)
                     execution_time = time.time() - start_time
 
-                    component_results["BiohackingResearchEngine"] = {
-                        "status": "passed" if isinstance(result, CompoundProfile) else "failed",
+                    test_results["basic_research"] = {
+                        "status": "passed" if not result.get("error") else "failed",
                         "execution_time": execution_time,
-                        "result_type": type(result).__name__
+                        "has_results": "research_results" in result,
+                        "personalized": result.get("personalization_applied", False)
                     }
 
-                    self._record_test_result(True, "BiohackingResearchEngine basic functionality")
+                    self._record_test_result(
+                        not result.get("error"),
+                        "Unified main interface basic research"
+                    )
+
+                # Test peptide-specific research
+                async with UnifiedBiohackingResearchTool("test_user") as tool:
+                    start_time = time.time()
+
+                    peptide_result = await tool.peptide_research(
+                        "TB-500",
+                        research_focus="dosage"
+                    )
+
+                    execution_time = time.time() - start_time
+
+                    test_results["peptide_research"] = {
+                        "status": "passed" if not peptide_result.get("error") else "failed",
+                        "execution_time": execution_time,
+                        "specialized": peptide_result.get("peptide_research", {}).get("specialized_analysis", False)
+                    }
+
+                    self._record_test_result(
+                        not peptide_result.get("error"),
+                        "Unified main interface peptide research"
+                    )
 
             except Exception as e:
-                component_results["BiohackingResearchEngine"] = {
-                    "status": "failed",
-                    "error": str(e)
-                }
-                self._record_test_result(False, f"BiohackingResearchEngine: {e}")
+                test_results["unified_interface"] = {"status": "failed", "error": str(e)}
+                self._record_test_result(False, f"Unified main interface: {e}")
+        else:
+            test_results["unified_interface"] = {"status": "skipped", "reason": "Components not available"}
 
-        # Test AdvancedSourceAggregator
+        self.test_results["component_tests"]["unified_main_interface"] = test_results
+
+    async def _test_enhanced_orchestrator(self):
+        """Test enhanced research orchestrátoru"""
+
+        logger.info("🧠 Testing enhanced research orchestrator...")
+
+        test_results = {}
+
         try:
-            async with AdvancedSourceAggregator() as aggregator:
+            async with EnhancedIntelligentOrchestrator() as orchestrator:
                 start_time = time.time()
-                results = await aggregator.multi_source_search(
-                    "peptide safety",
-                    max_results_per_source=2
+
+                # Test AI-powered research
+                result = await orchestrator.intelligent_research(
+                    "GHRP-6 growth hormone effects",
+                    user_id="test_user",
+                    mode="balanced_research",
+                    generate_insights=True
                 )
+
                 execution_time = time.time() - start_time
 
-                component_results["AdvancedSourceAggregator"] = {
-                    "status": "passed" if results else "failed",
+                test_results["ai_research"] = {
+                    "status": "passed" if result.get("success") else "failed",
                     "execution_time": execution_time,
-                    "sources_tested": len(results) if results else 0
+                    "ai_enhanced": result.get("ai_enhanced", False),
+                    "has_insights": bool(result.get("predictive_insights")),
+                    "quality_assessed": "quality_assessment" in result
                 }
 
-                self._record_test_result(bool(results), "AdvancedSourceAggregator search functionality")
-
-        except Exception as e:
-            component_results["AdvancedSourceAggregator"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"AdvancedSourceAggregator: {e}")
-
-        # Test QualityAssessmentSystem
-        try:
-            async with QualityAssessmentSystem() as quality_system:
-                test_data = {
-                    "compound_profile": {"name": "Test", "benefits": ["test"]},
-                    "source_results": {"test_source": [{"title": "Test", "snippet": "Test data"}]}
-                }
-
-                start_time = time.time()
-                assessment = await quality_system.assess_research_quality(test_data, "test_compound")
-                execution_time = time.time() - start_time
-
-                component_results["QualityAssessmentSystem"] = {
-                    "status": "passed" if "overall_quality" in assessment else "failed",
-                    "execution_time": execution_time,
-                    "assessment_keys": list(assessment.keys()) if assessment else []
-                }
-
-                self._record_test_result("overall_quality" in assessment, "QualityAssessmentSystem assessment")
-
-        except Exception as e:
-            component_results["QualityAssessmentSystem"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"QualityAssessmentSystem: {e}")
-
-        self.test_results["component_tests"] = component_results
-
-    async def _test_system_integration(self):
-        """Testování integrace systému"""
-
-        logger.info("🔗 Testing system integration...")
-
-        integration_results = {}
-
-        # Test full research workflow
-        try:
-            if COMPONENTS_AVAILABLE:
-                async with IntelligentResearchOrchestrator() as orchestrator:
-                    start_time = time.time()
-                    result = await orchestrator.intelligent_research(
-                        "BPC-157 dosing safety",
-                        user_id="test_user"
-                    )
-                    execution_time = time.time() - start_time
-
-                    integration_results["full_research_workflow"] = {
-                        "status": "passed" if "results" in result else "failed",
-                        "execution_time": execution_time,
-                        "result_keys": list(result.keys()) if result else []
-                    }
-
-                    self._record_test_result("results" in result, "Full research workflow integration")
-            else:
-                integration_results["full_research_workflow"] = {
-                    "status": "skipped",
-                    "reason": "Components not available"
-                }
-
-        except Exception as e:
-            integration_results["full_research_workflow"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"Full workflow integration: {e}")
-
-        # Test AI integration
-        try:
-            async with M1OptimizedOllamaClient() as ai_client:
-                start_time = time.time()
-                response = await ai_client.generate_response(
-                    "Explain BPC-157 in one sentence.",
-                    max_tokens=50
+                self._record_test_result(
+                    result.get("success", False),
+                    "Enhanced orchestrator AI research"
                 )
-                execution_time = time.time() - start_time
 
-                integration_results["ai_integration"] = {
-                    "status": "passed" if response else "failed",
-                    "execution_time": execution_time,
-                    "response_length": len(response) if response else 0
-                }
+                # Test different research modes
+                for mode in ["quick_overview", "deep_analysis", "safety_focused"]:
+                    try:
+                        mode_result = await orchestrator.intelligent_research(
+                            f"Modafinil {mode} test",
+                            user_id="test_user",
+                            mode=mode,
+                            generate_insights=False
+                        )
 
-                self._record_test_result(bool(response), "AI integration")
+                        test_results[f"mode_{mode}"] = {
+                            "status": "passed" if mode_result.get("success") else "failed",
+                            "mode": mode_result.get("research_mode")
+                        }
+
+                        self._record_test_result(
+                            mode_result.get("success", False),
+                            f"Enhanced orchestrator {mode} mode"
+                        )
+
+                    except Exception as e:
+                        test_results[f"mode_{mode}"] = {"status": "failed", "error": str(e)}
+                        self._record_test_result(False, f"Enhanced orchestrator {mode}: {e}")
 
         except Exception as e:
-            integration_results["ai_integration"] = {
-                "status": "failed",
-                "error": str(e)
+            test_results["enhanced_orchestrator"] = {"status": "failed", "error": str(e)}
+            self._record_test_result(False, f"Enhanced orchestrator: {e}")
+
+        self.test_results["component_tests"]["enhanced_orchestrator"] = test_results
+
+    async def _test_adaptive_learning(self):
+        """Test adaptivního learning systému"""
+
+        logger.info("📚 Testing adaptive learning system...")
+
+        test_results = {}
+
+        try:
+            async with EnhancedAdaptiveLearningSystem() as learning_system:
+                # Test learning from interactions
+                user_id = "test_learner"
+
+                test_interaction = {
+                    "query": "BPC-157 safety profile",
+                    "response": {"quality_score": 8.5, "success": True},
+                    "user_feedback": {"helpful": True, "detail_level": "appropriate"},
+                    "success_metrics": {"response_time": 25.0, "completeness": 0.9}
+                }
+
+                start_time = time.time()
+
+                insights = await learning_system.learn_from_interaction(
+                    user_id=user_id,
+                    query=test_interaction["query"],
+                    response=test_interaction["response"],
+                    user_feedback=test_interaction["user_feedback"],
+                    success_metrics=test_interaction["success_metrics"]
+                )
+
+                execution_time = time.time() - start_time
+
+                test_results["learning_interaction"] = {
+                    "status": "passed" if insights is not None else "failed",
+                    "execution_time": execution_time,
+                    "has_insights": bool(insights),
+                    "insights_count": len(insights) if insights else 0
+                }
+
+                self._record_test_result(
+                    insights is not None,
+                    "Adaptive learning from interaction"
+                )
+
+                # Test personalized prompt generation
+                personalized_prompt = await learning_system.generate_personalized_prompt(
+                    user_id=user_id,
+                    prompt_type="research",
+                    topic="TB-500"
+                )
+
+                test_results["personalized_prompts"] = {
+                    "status": "passed" if personalized_prompt else "failed",
+                    "has_adaptations": bool(personalized_prompt.user_adaptations) if personalized_prompt else False,
+                    "complexity_level": personalized_prompt.complexity_level if personalized_prompt else None
+                }
+
+                self._record_test_result(
+                    personalized_prompt is not None,
+                    "Adaptive learning personalized prompts"
+                )
+
+        except Exception as e:
+            test_results["adaptive_learning"] = {"status": "failed", "error": str(e)}
+            self._record_test_result(False, f"Adaptive learning: {e}")
+
+        self.test_results["component_tests"]["adaptive_learning"] = test_results
+
+    async def _test_unified_cache(self):
+        """Test unified cache systému"""
+
+        logger.info("💾 Testing unified cache system...")
+
+        test_results = {}
+
+        try:
+            cache = get_unified_cache()
+
+            # Test basic cache operations
+            test_key = "test_cache_key"
+            test_data = {"test": "data", "timestamp": time.time()}
+
+            # Test set operation
+            set_success = await cache.set(test_key, test_data, ttl=60)
+
+            # Test get operation
+            retrieved_data = await cache.get(test_key)
+
+            # Test cache hit
+            cache_hit = retrieved_data is not None and retrieved_data.get("test") == "data"
+
+            test_results["basic_operations"] = {
+                "set_success": set_success,
+                "get_success": retrieved_data is not None,
+                "cache_hit": cache_hit,
+                "data_integrity": retrieved_data == test_data if retrieved_data else False
             }
-            self._record_test_result(False, f"AI integration: {e}")
 
-        self.test_results["integration_tests"] = integration_results
+            self._record_test_result(
+                set_success and cache_hit,
+                "Unified cache basic operations"
+            )
 
-    async def _test_performance(self):
-        """Testování výkonu systému"""
+            # Test cache statistics
+            stats = cache.get_stats()
 
-        logger.info("⚡ Testing performance...")
+            test_results["cache_stats"] = {
+                "has_stats": bool(stats),
+                "has_hit_rate": "hit_rate_percent" in stats,
+                "has_memory_info": "items_in_memory" in stats
+            }
+
+            self._record_test_result(
+                bool(stats),
+                "Unified cache statistics"
+            )
+
+            # Test cache cleanup
+            deleted = await cache.delete(test_key)
+
+            test_results["cleanup"] = {
+                "delete_success": deleted,
+                "cleanup_verified": await cache.get(test_key) is None
+            }
+
+            self._record_test_result(
+                deleted,
+                "Unified cache cleanup"
+            )
+
+        except Exception as e:
+            test_results["unified_cache"] = {"status": "failed", "error": str(e)}
+            self._record_test_result(False, f"Unified cache: {e}")
+
+        self.test_results["component_tests"]["unified_cache"] = test_results
+
+    async def _test_performance_optimizations(self):
+        """Test výkonnostních optimalizací"""
+
+        logger.info("⚡ Testing performance optimizations...")
 
         performance_results = {}
 
-        # Test concurrent queries
+        # Test concurrent research capabilities
         try:
             if COMPONENTS_AVAILABLE:
-                async with IntelligentResearchOrchestrator() as orchestrator:
+                async with UnifiedBiohackingResearchTool("perf_user") as tool:
                     start_time = time.time()
 
-                    # Run 3 concurrent queries (M1 optimized)
+                    # Test 2 concurrent quick researches (M1 optimized)
                     tasks = [
-                        orchestrator.intelligent_research(query, f"user_{i}")
-                        for i, query in enumerate(self.test_queries[:3])
+                        tool.research(query, research_type="quick", output_format="brief")
+                        for query in self.test_queries[:2]
                     ]
 
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     execution_time = time.time() - start_time
 
-                    successful_results = [r for r in results if not isinstance(r, Exception)]
+                    successful_results = [r for r in results if not isinstance(r, Exception) and not r.get("error")]
 
-                    performance_results["concurrent_queries"] = {
+                    performance_results["concurrent_research"] = {
                         "total_queries": len(tasks),
                         "successful_queries": len(successful_results),
                         "total_time": execution_time,
                         "avg_time_per_query": execution_time / len(tasks),
-                        "throughput_qps": len(tasks) / execution_time
+                        "throughput_qps": len(tasks) / execution_time,
+                        "success_rate": len(successful_results) / len(tasks)
                     }
 
                     self._record_test_result(
                         len(successful_results) >= len(tasks) // 2,
-                        f"Concurrent performance: {len(successful_results)}/{len(tasks)} succeeded"
+                        f"Performance concurrent research: {len(successful_results)}/{len(tasks)} succeeded"
                     )
             else:
-                performance_results["concurrent_queries"] = {
-                    "status": "skipped",
-                    "reason": "Components not available"
-                }
+                performance_results["concurrent_research"] = {"status": "skipped"}
 
         except Exception as e:
-            performance_results["concurrent_queries"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"Concurrent performance: {e}")
+            performance_results["concurrent_research"] = {"status": "failed", "error": str(e)}
+            self._record_test_result(False, f"Performance concurrent research: {e}")
 
         # Test memory efficiency
         try:
@@ -323,10 +430,9 @@ class ComprehensiveTestSuite:
 
             # Perform memory-intensive operations
             if COMPONENTS_AVAILABLE:
-                async with BiohackingResearchEngine() as engine:
+                async with UnifiedBiohackingResearchTool("memory_user") as tool:
                     for compound in self.test_compounds[:3]:
-                        request = BiohackingResearchRequest(compound=compound)
-                        await engine.research_compound(request)
+                        await tool.peptide_research(compound, "safety")
 
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
             memory_increase = final_memory - initial_memory
@@ -335,222 +441,65 @@ class ComprehensiveTestSuite:
                 "initial_memory_mb": initial_memory,
                 "final_memory_mb": final_memory,
                 "memory_increase_mb": memory_increase,
-                "efficiency_score": max(0, 10 - memory_increase / 50)  # Penalty for high memory use
+                "efficiency_score": max(0, 10 - memory_increase / 50),  # Penalty for high memory use
+                "within_target": memory_increase < 200  # Target: less than 200MB increase
             }
 
             self._record_test_result(
-                memory_increase < 200,  # Less than 200MB increase
+                memory_increase < 200,
                 f"Memory efficiency: {memory_increase:.1f}MB increase"
             )
 
         except Exception as e:
-            performance_results["memory_efficiency"] = {
-                "status": "failed",
-                "error": str(e)
-            }
+            performance_results["memory_efficiency"] = {"status": "failed", "error": str(e)}
             self._record_test_result(False, f"Memory efficiency test: {e}")
 
         self.test_results["performance_metrics"] = performance_results
 
-    async def _test_resource_usage(self):
-        """Testování využití zdrojů"""
+    async def _test_personalization(self):
+        """Test personalizačních funkcí"""
 
-        logger.info("💾 Testing resource usage...")
+        logger.info("👤 Testing personalization features...")
 
-        try:
-            import psutil
+        personalization_results = {}
 
-            # Monitor CPU and memory during operations
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory_percent = psutil.virtual_memory().percent
-
-            resource_metrics = {
-                "cpu_usage_percent": cpu_percent,
-                "memory_usage_percent": memory_percent,
-                "available_memory_gb": psutil.virtual_memory().available / (1024**3)
-            }
-
-            self.test_results["resource_usage"] = resource_metrics
-
-            # Test passes if resource usage is reasonable
-            resource_test_passed = (
-                cpu_percent < 80 and
-                memory_percent < 90
-            )
-
-            self._record_test_result(
-                resource_test_passed,
-                f"Resource usage: CPU {cpu_percent}%, Memory {memory_percent}%"
-            )
-
-        except Exception as e:
-            self._record_test_result(False, f"Resource usage test: {e}")
-
-    async def _test_error_handling(self):
-        """Testování error handling"""
-
-        logger.info("🛡️ Testing error handling...")
-
-        error_handling_results = {}
-
-        # Test invalid inputs
         try:
             if COMPONENTS_AVAILABLE:
-                async with BiohackingResearchEngine() as engine:
-                    # Test with empty compound
-                    request = BiohackingResearchRequest(compound="")
-                    result = await engine.research_compound(request)
-
-                    error_handling_results["empty_input"] = {
-                        "handled_gracefully": True,
-                        "result_type": type(result).__name__
-                    }
-
-                    self._record_test_result(True, "Empty input error handling")
-            else:
-                error_handling_results["empty_input"] = {"status": "skipped"}
-
-        except Exception as e:
-            error_handling_results["empty_input"] = {
-                "handled_gracefully": True,  # Exception is expected
-                "error": str(e)
-            }
-            self._record_test_result(True, "Empty input error handling (exception expected)")
-
-        # Test network timeout simulation
-        try:
-            async with AdvancedSourceAggregator() as aggregator:
-                # Test with invalid source
-                results = await aggregator.multi_source_search(
-                    "test query",
-                    sources=["invalid_source"],
-                    max_results_per_source=1
-                )
-
-                error_handling_results["invalid_source"] = {
-                    "handled_gracefully": True,
-                    "results_returned": bool(results)
-                }
-
-                self._record_test_result(True, "Invalid source error handling")
-
-        except Exception as e:
-            error_handling_results["invalid_source"] = {
-                "handled_gracefully": True,
-                "error": str(e)
-            }
-            self._record_test_result(True, "Invalid source error handling")
-
-        self.test_results["error_handling"] = error_handling_results
-
-    async def _test_end_to_end_workflows(self):
-        """Testování end-to-end workflow"""
-
-        logger.info("🔄 Testing end-to-end workflows...")
-
-        workflow_results = {}
-
-        # Test complete biohacking research workflow
-        try:
-            if COMPONENTS_AVAILABLE:
-                async with IntelligentResearchOrchestrator() as orchestrator:
-                    # Simulate user research session
-                    user_id = "test_researcher"
-
-                    # Step 1: Initial research
-                    result1 = await orchestrator.intelligent_research(
-                        "BPC-157 healing benefits",
-                        user_id=user_id
-                    )
-
-                    # Step 2: Follow-up research
-                    result2 = await orchestrator.intelligent_research(
-                        "BPC-157 dosing protocol",
-                        user_id=user_id
-                    )
-
-                    # Step 3: Safety research
-                    result3 = await orchestrator.intelligent_research(
-                        "BPC-157 side effects safety",
-                        user_id=user_id
-                    )
-
-                    workflow_results["complete_research_session"] = {
-                        "steps_completed": 3,
-                        "all_successful": all("results" in r for r in [result1, result2, result3]),
-                        "user_profile_updated": user_id in orchestrator.user_profiles,
-                        "personalization_working": any(
-                            "personalization_applied" in r for r in [result1, result2, result3]
-                        )
-                    }
-
-                    workflow_success = (
-                        workflow_results["complete_research_session"]["all_successful"] and
-                        workflow_results["complete_research_session"]["user_profile_updated"]
-                    )
-
-                    self._record_test_result(workflow_success, "Complete research session workflow")
-            else:
-                workflow_results["complete_research_session"] = {"status": "skipped"}
-
-        except Exception as e:
-            workflow_results["complete_research_session"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"Research session workflow: {e}")
-
-        self.test_results["end_to_end_workflows"] = workflow_results
-
-    async def _test_ai_integration(self):
-        """Testování AI integrace"""
-
-        logger.info("🤖 Testing AI integration...")
-
-        ai_results = {}
-
-        # Test prompt processing
-        try:
-            async with M1OptimizedOllamaClient() as ai_client:
-                # Test different prompt types
-                test_prompts = [
-                    PEPTIDE_RESEARCH_PROMPTS["basic_info"].format(query="BPC-157"),
-                    BIOHACKING_PROMPTS["safety_profile"].format(query="Modafinil")
+                # Test with different user profiles
+                user_profiles = [
+                    {"user_id": "beginner_user", "complexity": "beginner"},
+                    {"user_id": "expert_user", "complexity": "expert"}
                 ]
 
-                prompt_results = []
-                for i, prompt in enumerate(test_prompts):
-                    start_time = time.time()
-                    response = await ai_client.generate_response(prompt, max_tokens=100)
-                    execution_time = time.time() - start_time
+                for profile in user_profiles:
+                    try:
+                        async with UnifiedBiohackingResearchTool(profile["user_id"]) as tool:
+                            result = await tool.research(
+                                "BPC-157 mechanisms",
+                                research_type="balanced",
+                                output_format="detailed"
+                            )
 
-                    prompt_results.append({
-                        "prompt_index": i,
-                        "response_length": len(response) if response else 0,
-                        "execution_time": execution_time,
-                        "successful": bool(response)
-                    })
+                            personalization_results[profile["user_id"]] = {
+                                "status": "passed" if not result.get("error") else "failed",
+                                "personalized": result.get("personalization_applied", False),
+                                "has_user_context": profile["user_id"] in str(result)
+                            }
 
-                ai_results["prompt_processing"] = {
-                    "total_prompts": len(test_prompts),
-                    "successful_prompts": sum(1 for r in prompt_results if r["successful"]),
-                    "avg_execution_time": sum(r["execution_time"] for r in prompt_results) / len(prompt_results),
-                    "results": prompt_results
-                }
+                            self._record_test_result(
+                                not result.get("error"),
+                                f"Personalization for {profile['user_id']}"
+                            )
 
-                self._record_test_result(
-                    ai_results["prompt_processing"]["successful_prompts"] > 0,
-                    f"AI prompt processing: {ai_results['prompt_processing']['successful_prompts']}/{len(test_prompts)} successful"
-                )
+                    except Exception as e:
+                        personalization_results[profile["user_id"]] = {"status": "failed", "error": str(e)}
+                        self._record_test_result(False, f"Personalization {profile["user_id"]}: {e}")
 
         except Exception as e:
-            ai_results["prompt_processing"] = {
-                "status": "failed",
-                "error": str(e)
-            }
-            self._record_test_result(False, f"AI prompt processing: {e}")
+            personalization_results["personalization"] = {"status": "failed", "error": str(e)}
+            self._record_test_result(False, f"Personalization test: {e}")
 
-        self.test_results["ai_integration"] = ai_results
+        self.test_results["integration_tests"]["personalization"] = personalization_results
 
     def _record_test_result(self, passed: bool, test_name: str):
         """Zaznamenání výsledku testu"""
@@ -563,99 +512,43 @@ class ComprehensiveTestSuite:
             self.test_results["tests_failed"] += 1
             logger.warning(f"❌ {test_name}")
 
-    async def save_test_report(self, output_path: Path = None):
-        """Uložení testovacího reportu"""
-
-        if output_path is None:
-            output_path = Path("TEST_REPORT.json")
-
-        try:
-            with open(output_path, 'w') as f:
-                json.dump(self.test_results, f, indent=2, default=str)
-
-            logger.info(f"📄 Test report saved to {output_path}")
-
-            # Also create markdown report
-            await self._create_markdown_report(output_path.with_suffix('.md'))
-
-        except Exception as e:
-            logger.error(f"Failed to save test report: {e}")
-
-    async def _create_markdown_report(self, output_path: Path):
-        """Vytvoření markdown reportu"""
-        
-        report_content = f"""# Comprehensive Test Report
-
-Generated: {self.test_results['timestamp']}
-
-## Summary
-- **Total Tests**: {self.test_results['tests_run']}
-- **Passed**: {self.test_results['tests_passed']}
-- **Failed**: {self.test_results['tests_failed']}
-- **Success Rate**: {self.test_results.get('success_rate', 0):.2%}
-- **Execution Time**: {self.test_results.get('total_execution_time', 0):.2f} seconds
-
-## Component Tests
-"""
-        
-        for component, result in self.test_results.get('component_tests', {}).items():
-            status_emoji = "✅" if result.get('status') == 'passed' else "❌"
-            report_content += f"- {status_emoji} **{component}**: {result.get('status', 'unknown')}\n"
-            
-        report_content += "\n## Performance Metrics\n"
-        perf_metrics = self.test_results.get('performance_metrics', {})
-        for metric, data in perf_metrics.items():
-            report_content += f"### {metric.replace('_', ' ').title()}\n"
-            if isinstance(data, dict):
-                for key, value in data.items():
-                    report_content += f"- {key}: {value}\n"
-            report_content += "\n"
-            
-        if self.test_results.get('errors'):
-            report_content += "## Errors\n"
-            for error in self.test_results['errors']:
-                report_content += f"- {error}\n"
-                
-        try:
-            output_path.write_text(report_content, encoding='utf-8')
-            logger.info(f"📄 Markdown report saved to {output_path}")
-        except Exception as e:
-            logger.error(f"Failed to save markdown report: {e}")
-
 # Pytest fixtures and tests
 @pytest.fixture
 async def test_suite():
     """Pytest fixture pro test suite"""
-    return ComprehensiveTestSuite()
+    return UpdatedComprehensiveTestSuite()
 
 @pytest.mark.asyncio
 async def test_component_functionality(test_suite):
     """Test základní funkcionality komponent"""
-    await test_suite._test_individual_components()
+    await test_suite._test_unified_main_interface()
+    await test_suite._test_enhanced_orchestrator()
+    await test_suite._test_adaptive_learning()
+    await test_suite._test_unified_cache()
     assert test_suite.test_results["tests_passed"] > 0
 
 @pytest.mark.asyncio
 async def test_system_integration(test_suite):
     """Test integrace systému"""
-    await test_suite._test_system_integration()
+    await test_suite._test_personalization()
     assert test_suite.test_results["tests_passed"] > 0
 
 @pytest.mark.asyncio
 async def test_performance_benchmarks(test_suite):
     """Test výkonnostních benchmarků"""
-    await test_suite._test_performance()
+    await test_suite._test_performance_optimizations()
     assert test_suite.test_results["tests_passed"] > 0
 
 # Main execution function
-async def run_comprehensive_tests():
-    """Hlavní funkce pro spuštění testů"""
-    test_suite = ComprehensiveTestSuite()
-    results = await test_suite.run_full_test_suite()
+async def run_updated_comprehensive_tests():
+    """Hlavní funkce pro spuštění aktualizovaných testů"""
+    test_suite = UpdatedComprehensiveTestSuite()
+    results = await test_suite.run_updated_test_suite()
     await test_suite.save_test_report()
     return results
 
 if __name__ == "__main__":
-    asyncio.run(run_comprehensive_tests())
+    asyncio.run(run_updated_comprehensive_tests())
 
 # Export
-__all__ = ['ComprehensiveTestSuite', 'run_comprehensive_tests']
+__all__ = ['UpdatedComprehensiveTestSuite', 'run_updated_comprehensive_tests']
