@@ -1,3 +1,4 @@
+"""
 Unified Configuration System - Sjednocuje všechny konfigurace
 Nahrazuje config.py, settings.py, config_personal.py
 Integruje stávající nastavení do unified architektury
@@ -398,48 +399,61 @@ def get_config() -> UnifiedConfig:
 
 def _load_from_env(config: UnifiedConfig):
     """Načte konfiguraci z environment variables"""
+    import os
+
+    # Database konfigurace
+    if os.getenv('DATABASE_URL'):
+        config.database.url = os.getenv('DATABASE_URL')
 
     # API konfigurace
-    if host := os.getenv('API_HOST'):
-        config.api.host = host
-    if port := os.getenv('API_PORT'):
-        config.api.port = int(port)
-    if debug := os.getenv('API_DEBUG'):
-        config.api.debug = debug.lower() == 'true'
+    if os.getenv('API_PORT'):
+        try:
+            config.api.port = int(os.getenv('API_PORT'))
+        except ValueError:
+            pass
+
+    if os.getenv('API_HOST'):
+        config.api.host = os.getenv('API_HOST')
 
     # AI konfigurace
-    if ollama_host := os.getenv('OLLAMA_HOST'):
-        config.ai.local_ai.ollama_host = ollama_host
-    if primary_model := os.getenv('PRIMARY_MODEL'):
-        config.ai.local_ai.primary_model = primary_model
+    if os.getenv('OLLAMA_HOST'):
+        config.ai.local_ai.ollama_host = os.getenv('OLLAMA_HOST')
 
-    # Database
-    if db_url := os.getenv('DATABASE_URL'):
-        config.database.url = db_url
-        config.database.type = "postgresql" if "postgresql" in db_url else "sqlite"
+    if os.getenv('GEMINI_API_KEY'):
+        config.ai.gemini_api_key = os.getenv('GEMINI_API_KEY')
 
-    # Cache
-    if cache_dir := os.getenv('CACHE_DIR'):
-        config.cache.cache_dir = Path(cache_dir)
+    if os.getenv('OPENAI_API_KEY'):
+        config.ai.openai_api_key = os.getenv('OPENAI_API_KEY')
 
     # Environment
-    env = os.getenv('ENVIRONMENT', 'development').lower()
-    if env in ['development', 'testing', 'production']:
-        config.environment = Environment(env)
+    if os.getenv('ENVIRONMENT'):
+        env_value = os.getenv('ENVIRONMENT').lower()
+        if env_value in ['development', 'testing', 'production']:
+            config.environment = Environment(env_value)
 
-# Export hlavních komponent
+    # Logging
+    if os.getenv('LOG_LEVEL'):
+        config.logging.level = os.getenv('LOG_LEVEL').upper()
+
+    # Cache konfigurace
+    if os.getenv('CACHE_DIR'):
+        config.cache.cache_dir = Path(os.getenv('CACHE_DIR'))
+
+    # Security
+    if os.getenv('API_KEY'):
+        config.security.api_key = os.getenv('API_KEY')
+        config.security.api_key_required = True
+
+def reset_config():
+    """Reset globální konfigurace (pro testing)"""
+    global _global_config
+    with _config_lock:
+        _global_config = None
+
+# Export hlavních objektů
 __all__ = [
-    'Environment',
-    'ResearchStrategy',
-    'UnifiedConfig',
-    'create_config',
-    'get_config',
-    'DatabaseConfig',
-    'ScrapingConfig',
-    'SourceConfig',
-    'LocalAIConfig',
-    'AIConfig',
-    'CacheConfig',
-    'APIConfig',
-    'SecurityConfig'
+    'UnifiedConfig', 'get_config', 'create_config', 'reset_config',
+    'Environment', 'ResearchStrategy',
+    'DatabaseConfig', 'ScrapingConfig', 'LocalAIConfig', 'AIConfig',
+    'CacheConfig', 'CostConfig', 'LoggingConfig', 'APIConfig', 'SecurityConfig', 'SourceConfig'
 ]

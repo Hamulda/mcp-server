@@ -1,3 +1,4 @@
+"""
 Comprehensive Test Suite pro optimalizované komponenty
 Pokrývá academic_scraper, unified_config s mock testy a validací
 """
