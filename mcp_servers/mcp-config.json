@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "brave-search": {
+      "command": "node",
+      "args": ["./mcp_servers/brave-search-mcp-server/dist/index.js"],
+      "env": {
+        "BRAVE_API_KEY": "your-brave-api-key-here"
+      }
+    },
+    "puppeteer": {
+      "command": "node",
+      "args": ["./mcp_servers/servers-archived/src/puppeteer/dist/index.js"]
+    },
+    "git": {
+      "command": "node",
+      "args": ["./mcp_servers/mcp-official-servers/src/git/dist/index.js"]
+    },
+    "fetch": {
+      "command": "node",
+      "args": ["./mcp_servers/mcp-official-servers/src/fetch/dist/index.js"]
+    },
+    "github": {
+      "command": "./mcp_servers/github-mcp-server/github-mcp-server",
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-token-here"
+      },
+      "note": "Requires Go to be installed and built first"
+    }
+  }
+}
+

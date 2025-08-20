@@ -2,5 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mcp_servers/brave-search-mcp-server" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mcp_servers/github-mcp-server" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mcp_servers/mcp-official-servers" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mcp_servers/servers-archived" vcs="Git" />
   </component>
 </project>

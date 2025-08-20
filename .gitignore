@@ -1,12 +1,8 @@
-git add .# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -25,83 +21,9 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+PIPFILE.lock
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
+# Virtual Environment
 .env
 .venv
 env/
@@ -109,29 +31,74 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.venv1/
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Rope project settings
-.ropeproject
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# mkdocs documentation
-/site
-
-# mypy
+# Project specific
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
-.pyre/
-
-# Project specific
+# Cache directories
 cache/
 chroma_data/
 data/cache/
+*.db-journal
+
+# Docker
+.dockerignore
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Environment variables
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Database
+*.sqlite
 *.sqlite3
+*.db
+
+# Reports and logs
 reports/
-monitoring/grafana/data/
+logs/
+*.log
+
+# MCP Servers (clone separately using installation guide)
+mcp_servers/brave-search-mcp-server/
+mcp_servers/github-mcp-server/
+mcp_servers/mcp-official-servers/
+mcp_servers/servers-archived/
+
+# Keep only configuration and management files
+!mcp_servers/mcp-config.json
+!mcp_servers/package.json

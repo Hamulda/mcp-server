@@ -20,6 +20,7 @@
 - **Tool-based architecture** for seamless AI integration
 - **RESTful API** with comprehensive endpoints
 - **Real-time research capabilities**
+- **5 Advanced MCP Servers**: Brave Search, Puppeteer, Git, Fetch, GitHub
 
 ### 🔧 **M1 MacBook Optimized**
 - **Memory-efficient caching** with pressure detection
@@ -133,7 +134,7 @@ results = asyncio.run(research_peptides())
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┬─────────────────┬─────────────────┐
+┌──��──────────────┬─────────────────┬─────────────────┐
 │   FastAPI       │   MCP Server    │   Monitoring    │
 │   (Port 8080)   │   (/mcp)        │   (Grafana)     │
 └─────────────────┴─────────────────┴─────────────────┘
@@ -193,6 +194,31 @@ Pre-configured dashboards for:
 - Scraper health and success rates
 - Cache efficiency metrics
 - System resource utilization
+
+## 🤖 MCP Servers
+
+### 📦 Installed MCP Servers
+Your project now includes 5 powerful MCP servers for AI agent integration:
+
+1. **🔍 Brave Search** - Web search, news, images, videos
+2. **🕷️ Puppeteer** - Web scraping and browser automation  
+3. **📦 Git** - Git repository operations and management
+4. **🌐 Fetch** - HTTP requests and API calls
+5. **🐙 GitHub** - GitHub API integration (requires Go)
+
+### Quick MCP Setup
+```bash
+# List all available MCP servers
+./mcp-servers.sh list
+
+# Build all servers
+./mcp-servers.sh build
+
+# Start a specific server
+./mcp-servers.sh start brave-search
+```
+
+See [MCP_SERVERS.md](MCP_SERVERS.md) for detailed setup and configuration.
 
 ## 🛠️ Development
 
