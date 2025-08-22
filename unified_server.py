@@ -331,7 +331,7 @@ class UnifiedServer:
 
         # Optional: Add MCP router if available
         if MCP_AVAILABLE and mcp_router:
-            self.app.include_router(mcp_router, prefix="/mcp")
+            self.app.include_router(mcp_router)
             print("✅ MCP router registered at /mcp")
         else:
             print("⚠️  MCP router not available")
@@ -351,10 +351,19 @@ app = create_app()
 # Pro přímé spuštění (lokální vývoj)
 if __name__ == "__main__":
     import uvicorn
-    config = get_config()
+    # Použijeme port 8001 místo 8000 kvůli konfliktu
+    port = 8001
+    host = "0.0.0.0"
+
+    if UNIFIED_CONFIG_AVAILABLE:
+        config = get_config()
+        host = getattr(config.api, 'host', '0.0.0.0')
+        port = getattr(config.api, 'port', 8001)
+
+    print(f"🚀 Starting server on {host}:{port}")
     uvicorn.run(
         "unified_server:app",
-        host=config.api.host if UNIFIED_CONFIG_AVAILABLE else "0.0.0.0",
-        port=config.api.port if UNIFIED_CONFIG_AVAILABLE else 8000,
+        host=host,
+        port=port,
         reload=True
     )

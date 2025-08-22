@@ -1,47 +1,80 @@
-# mcp_handler.py
+#!/usr/bin/env python3
+"""
+MCP Handler - Opravený handler pro Model Context Protocol
+"""
+
 import asyncio
-import os
+import json
 import subprocess
+import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter
-from mcp.server.main import create_mcp_server
-from mcp.server.tools import Tool, ToolExecuteRequest, ToolExecuteResponse
-from subprocess_tee import run
+from pydantic import BaseModel
 
+# Simplified MCP implementation without external dependencies
+class ToolExecuteRequest(BaseModel):
+    """Request model for tool execution"""
+    name: str
+    parameters: Dict[str, Any] = {}
 
-# --- Definice nástrojů ---
+class ToolExecuteResponse(BaseModel):
+    """Response model for tool execution"""
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    exit_code: Optional[int] = None
+    success: bool = True
 
-class ReadFileTool(Tool):
+class BaseTool:
+    """Base class for MCP tools"""
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+
+    async def execute(self, req: ToolExecuteRequest) -> ToolExecuteResponse:
+        raise NotImplementedError
+
+class ReadFileTool(BaseTool):
     """Nástroj pro čtení souborů."""
-    name = "read_file"
-    description = "Přečte obsah souboru v projektu."
+
+    def __init__(self):
+        super().__init__("read_file", "Přečte obsah souboru v projektu.")
 
     async def execute(self, req: ToolExecuteRequest) -> ToolExecuteResponse:
         try:
-            file_path_str = req.parameters.get("query")
+            file_path_str = req.parameters.get("query") or req.parameters.get("path")
             if not file_path_str:
-                return ToolExecuteResponse(stderr="Chybí cesta k souboru v parametru 'query'.")
+                return ToolExecuteResponse(
+                    stderr="Chybí cesta k souboru v parametru 'query' nebo 'path'.",
+                    success=False
+                )
 
             # Bezpečnostní omezení - povolujeme přístup pouze v rámci projektu
             project_root = Path("/app").resolve()
             target_path = (project_root / file_path_str).resolve()
 
             if not target_path.is_relative_to(project_root):
-                return ToolExecuteResponse(stderr="Chyba: Pokus o přístup mimo adresář projektu.")
+                return ToolExecuteResponse(
+                    stderr="Chyba: Pokus o přístup mimo adresář projektu.",
+                    success=False
+                )
 
             if not target_path.exists():
-                return ToolExecuteResponse(stderr=f"Chyba: Soubor neexistuje na cestě: {file_path_str}")
+                return ToolExecuteResponse(
+                    stderr=f"Chyba: Soubor neexistuje na cestě: {file_path_str}",
+                    success=False
+                )
 
             content = target_path.read_text(encoding="utf-8")
-            return ToolExecuteResponse(stdout=content)
+            return ToolExecuteResponse(stdout=content, success=True)
         except Exception as e:
-            return ToolExecuteResponse(stderr=f"Nastala chyba při čtení souboru: {e}")
+            return ToolExecuteResponse(stderr=f"Nastala chyba při čtení souboru: {e}", success=False)
 
-
-class WriteFileTool(Tool):
+class WriteFileTool(BaseTool):
     """Nástroj pro zápis do souborů."""
-    name = "write_file"
-    description = "Zapíše text do souboru. Pokud soubor neexistuje, vytvoří ho."
+
+    def __init__(self):
+        super().__init__("write_file", "Zapíše text do souboru. Pokud soubor neexistuje, vytvoří ho.")
 
     async def execute(self, req: ToolExecuteRequest) -> ToolExecuteResponse:
         try:
@@ -49,68 +82,90 @@ class WriteFileTool(Tool):
             content = req.parameters.get("content")
 
             if not file_path_str:
-                return ToolExecuteResponse(stderr="Chybí cesta k souboru v parametru 'path'.")
+                return ToolExecuteResponse(
+                    stderr="Chybí cesta k souboru v parametru 'path'.",
+                    success=False
+                )
             if content is None:
-                return ToolExecuteResponse(stderr="Chybí obsah pro zápis v parametru 'content'.")
+                return ToolExecuteResponse(
+                    stderr="Chybí obsah pro zápis v parametru 'content'.",
+                    success=False
+                )
 
             project_root = Path("/app").resolve()
             target_path = (project_root / file_path_str).resolve()
 
             if not target_path.is_relative_to(project_root):
-                return ToolExecuteResponse(stderr="Chyba: Pokus o přístup mimo adresář projektu.")
+                return ToolExecuteResponse(
+                    stderr="Chyba: Pokus o přístup mimo adresář projektu.",
+                    success=False
+                )
 
             # Vytvoříme adresáře, pokud neexistují
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
             target_path.write_text(content, encoding="utf-8")
-            return ToolExecuteResponse(stdout=f"Soubor '{file_path_str}' byl úspěšně uložen.")
+            return ToolExecuteResponse(
+                stdout=f"Soubor '{file_path_str}' byl úspěšně uložen.",
+                success=True
+            )
         except Exception as e:
-            return ToolExecuteResponse(stderr=f"Nastala chyba při zápisu do souboru: {e}")
+            return ToolExecuteResponse(stderr=f"Nastala chyba při zápisu do souboru: {e}", success=False)
 
-
-class RunInTerminalTool(Tool):
+class RunInTerminalTool(BaseTool):
     """Nástroj pro spouštění příkazů v terminálu."""
-    name = "run_in_terminal"
-    description = "Spustí bezpečný příkaz v sandboxu (uvnitř Docker kontejneru)."
+
+    def __init__(self):
+        super().__init__("run_in_terminal", "Spustí bezpečný příkaz v sandboxu (uvnitř Docker kontejneru).")
 
     async def execute(self, req: ToolExecuteRequest) -> ToolExecuteResponse:
         try:
-            command = req.parameters.get("query")
+            command = req.parameters.get("query") or req.parameters.get("command")
             if not command:
-                return ToolExecuteResponse(stderr="Chybí příkaz ke spuštění v parametru 'query'.")
+                return ToolExecuteResponse(
+                    stderr="Chybí příkaz ke spuštění v parametru 'query' nebo 'command'.",
+                    success=False
+                )
 
             # Spuštění příkazu v /app adresáři uvnitř kontejneru
             result = await asyncio.to_thread(
-                run, command, shell=True, cwd="/app", check=False
+                subprocess.run,
+                command,
+                shell=True,
+                cwd="/app",
+                capture_output=True,
+                text=True,
+                check=False
             )
-
-            output = result.stdout.decode('utf-8')
-            error = result.stderr.decode('utf-8')
 
             return ToolExecuteResponse(
-                stdout=output,
-                stderr=error,
-                exit_code=result.returncode
+                stdout=result.stdout,
+                stderr=result.stderr,
+                exit_code=result.returncode,
+                success=result.returncode == 0
             )
         except Exception as e:
-            return ToolExecuteResponse(stderr=f"Nastala chyba při spouštění příkazu: {e}")
+            return ToolExecuteResponse(stderr=f"Nastala chyba při spouštění příkazu: {e}", success=False)
 
-
-class ResearchTool(Tool):
+class ResearchTool(BaseTool):
     """Nástroj pro research pomocí academic scraper."""
-    name = "research"
-    description = "Provede akademický research na zadané téma."
+
+    def __init__(self):
+        super().__init__("research", "Provede akademický research na zadané téma.")
 
     async def execute(self, req: ToolExecuteRequest) -> ToolExecuteResponse:
         try:
             query = req.parameters.get("query")
             if not query:
-                return ToolExecuteResponse(stderr="Chybí dotaz v parametru 'query'.")
+                return ToolExecuteResponse(
+                    stderr="Chybí dotaz v parametru 'query'.",
+                    success=False
+                )
 
             # Import academic scraper
             try:
                 from academic_scraper import create_scraping_orchestrator
-                orchestrator = create_scraping_orchestrator()
+                orchestrator = await create_scraping_orchestrator()
                 results = await orchestrator.scrape_all_sources(query, max_results=5)
 
                 # Format results
@@ -123,73 +178,62 @@ class ResearchTool(Tool):
                             "success": result.success
                         })
 
-                import json
-                return ToolExecuteResponse(stdout=json.dumps(formatted_results, indent=2))
+                return ToolExecuteResponse(
+                    stdout=json.dumps(formatted_results, indent=2),
+                    success=True
+                )
 
             except ImportError:
-                return ToolExecuteResponse(stderr="Academic scraper není dostupný")
+                return ToolExecuteResponse(
+                    stderr="Academic scraper není dostupný",
+                    success=False
+                )
 
         except Exception as e:
-            return ToolExecuteResponse(stderr=f"Chyba při research: {e}")
-
+            return ToolExecuteResponse(stderr=f"Chyba při research: {e}", success=False)
 
 # Vytvoření MCP serveru s našimi nástroji
-try:
-    from fastapi import APIRouter
+mcp_router = APIRouter(prefix="/mcp", tags=["MCP"])
 
-    mcp_router = APIRouter()
+# Registrace nástrojů
+tools = [
+    ReadFileTool(),
+    WriteFileTool(),
+    RunInTerminalTool(),
+    ResearchTool()
+]
 
-    # Registrace nástrojů
-    tools = [
-        ReadFileTool(),
-        WriteFileTool(),
-        RunInTerminalTool(),
-        ResearchTool()
-    ]
+@mcp_router.get("/tools")
+async def list_tools():
+    """Seznam dostupných nástrojů"""
+    return {
+        "tools": [
+            {
+                "name": tool.name,
+                "description": tool.description
+            }
+            for tool in tools
+        ]
+    }
 
-    @mcp_router.get("/tools")
-    async def list_tools():
-        """Seznam dostupných MCP nástrojů"""
-        return {
-            "tools": [
-                {
-                    "name": tool.name,
-                    "description": tool.description
-                } for tool in tools
-            ]
-        }
+@mcp_router.post("/tools/{tool_name}/execute")
+async def execute_tool(tool_name: str, request: ToolExecuteRequest):
+    """Spuštění konkrétního nástroje"""
+    tool = next((t for t in tools if t.name == tool_name), None)
+    if not tool:
+        return {"error": f"Nástroj '{tool_name}' nebyl nalezen"}
 
-    @mcp_router.post("/tools/{tool_name}/execute")
-    async def execute_tool(tool_name: str, request: dict):
-        """Spuštění MCP nástroje"""
-        for tool in tools:
-            if tool.name == tool_name:
-                # Simulate ToolExecuteRequest
-                class MockRequest:
-                    def __init__(self, params):
-                        self.parameters = params
+    try:
+        result = await tool.execute(request)
+        return result.model_dump()
+    except Exception as e:
+        return {"error": f"Chyba při spouštění nástroje: {e}", "success": False}
 
-                mock_req = MockRequest(request.get("parameters", {}))
-                result = await tool.execute(mock_req)
-
-                return {
-                    "stdout": getattr(result, 'stdout', ''),
-                    "stderr": getattr(result, 'stderr', ''),
-                    "exit_code": getattr(result, 'exit_code', 0)
-                }
-
-        return {"error": f"Tool {tool_name} not found"}
-
-    @mcp_router.get("/")
-    async def mcp_root():
-        """MCP Server root endpoint"""
-        return {
-            "name": "Academic Research MCP Server",
-            "version": "1.0.0",
-            "tools_count": len(tools),
-            "status": "running"
-        }
-
-except ImportError as e:
-    print(f"⚠️ MCP dependencies not available: {e}")
-    mcp_router = None
+@mcp_router.get("/status")
+async def mcp_status():
+    """Status MCP serveru"""
+    return {
+        "status": "running",
+        "tools_count": len(tools),
+        "available_tools": [tool.name for tool in tools]
+    }

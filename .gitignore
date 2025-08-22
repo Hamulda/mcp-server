@@ -1,8 +1,12 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -21,9 +25,77 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-PIPFILE.lock
+MANIFEST
 
-# Virtual Environment
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
 .venv
 env/
@@ -33,72 +105,47 @@ env.bak/
 venv.bak/
 .venv1/
 
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Project specific
+cache/
+chroma_data/
+data/
+reports/
+monitoring/
+
+# API Keys and sensitive data
+*.key
+*.pem
+config/secrets.json
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# OS
+# macOS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Project specific
-*.log
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Cache directories
-cache/
-chroma_data/
-data/cache/
-*.db-journal
-
-# Docker
-.dockerignore
-
-# Temporary files
-*.tmp
-*.temp
-temp/
-tmp/
-
-# Environment variables
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Jupyter Notebooks
-.ipynb_checkpoints
-
-# Database
-*.sqlite
-*.sqlite3
-*.db
-
-# Reports and logs
-reports/
-logs/
-*.log
-
-# MCP Servers (clone separately using installation guide)
-mcp_servers/brave-search-mcp-server/
-mcp_servers/github-mcp-server/
-mcp_servers/mcp-official-servers/
-mcp_servers/servers-archived/
-
-# Keep only configuration and management files
-!mcp_servers/mcp-config.json
-!mcp_servers/package.json
+# Node modules (for MCP servers)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
