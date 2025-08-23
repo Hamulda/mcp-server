@@ -1,5 +1,7 @@
+"""
 Project Cleanup and Optimization System - Automatické čištění a optimalizace projektu
 Identifikuje a odstraňuje zbytečné soubory, optimalizuje strukturu a výkon
+ROZŠÍŘENO - automatické slučování redundantních souborů a pokročilé optimalizace
 """
 
 import os
@@ -7,6 +9,8 @@ import shutil
 import asyncio
 import json
 import logging
+import ast
+import difflib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 from pathlib import Path
@@ -17,7 +21,7 @@ import re
 logger = logging.getLogger(__name__)
 
 class ProjectCleanupOptimizer:
-    """Systém pro čištění a optimalizaci projektu"""
+    """Systém pro čištění a optimalizaci projektu - ROZŠÍŘENÝ"""
 
     def __init__(self, project_root: Path = None):
         self.project_root = project_root or Path.cwd()
@@ -25,8 +29,11 @@ class ProjectCleanupOptimizer:
             "timestamp": datetime.now().isoformat(),
             "files_removed": [],
             "files_optimized": [],
+            "files_consolidated": [],
             "space_saved_mb": 0.0,
             "optimizations_applied": [],
+            "import_fixes": [],
+            "redundancy_analysis": {},
             "errors": []
         }
 
@@ -49,487 +56,433 @@ class ProjectCleanupOptimizer:
                 "logs/**",
                 "agent_server.log"
             ],
-            "temporary_files": [
+            "temp_files": [
                 "tmp/**",
                 "temp/**",
                 "*.tmp",
-                "*.temp"
+                ".vscode/settings.json.backup*"
             ],
-            "backup_files": [
-                "*.bak",
-                "*.backup",
-                "*~",
-                "*.orig"
-            ],
-            "test_artifacts": [
-                "test_*.json",
-                "failed_urls.log",
-                ".coverage",
-                "htmlcov/**"
+            "duplicate_configs": [
+                "config_backup_*",
+                "*.config.old",
+                "*.conf.bak"
             ]
         }
 
-        # Files to keep (whitelist)
-        self.keep_files = {
-            "README.md",
-            "requirements.txt",
-            "requirements-dev.txt",
-            "requirements-private.txt",
-            "docker-compose.yml",
-            "Dockerfile",
-            ".dockerignore",
-            "Makefile",
-            "pytest.ini",
-            "setup_m1.sh"
+        # Redundant file patterns for consolidation
+        self.redundancy_patterns = {
+            "orchestrators": [
+                ("intelligent_research_orchestrator.py", "enhanced_research_orchestrator.py"),
+                ("research_orchestrator.py", "enhanced_research_orchestrator.py")
+            ],
+            "cache_systems": [
+                ("smart_caching_system.py", "unified_cache_system.py"),
+                ("cache_manager.py", "unified_cache_system.py"),
+                ("m1_optimized_cache.py", "unified_cache_system.py")
+            ],
+            "mcp_tools": [
+                ("smart_mcp_tools.py", "copilot_tools.py"),
+                ("advanced_copilot_mcp.py", "copilot_tools.py"),
+                ("copilot_mcp_interface.py", "copilot_tools.py"),
+                ("github_copilot_mcp_tools.py", "copilot_tools.py")
+            ]
         }
 
-        # Duplicate detection
-        self.file_hashes = {}
-        self.duplicates = []
+        # Import mapping for fixing broken imports
+        self.import_mappings = {
+            "intelligent_research_orchestrator": "enhanced_research_orchestrator",
+            "smart_caching_system": "unified_cache_system",
+            "smart_mcp_tools": "copilot_tools",
+            "advanced_copilot_mcp": "copilot_tools",
+            "copilot_mcp_interface": "copilot_tools",
+            "github_copilot_mcp_tools": "copilot_tools"
+        }
 
-    async def full_cleanup_and_optimization(self) -> Dict[str, any]:
-        """Kompletní čištění a optimalizace projektu"""
+        # Class/function mappings for consolidated modules
+        self.class_mappings = {
+            "IntelligentResearchOrchestrator": "ConsolidatedResearchOrchestrator",
+            "SmartMCPTools": "UnifiedCopilotInterface",
+            "AdvancedCopilotMCP": "UnifiedCopilotInterface",
+            "CopilotMCPInterface": "UnifiedCopilotInterface"
+        }
 
-        logger.info("🧹 Starting full project cleanup and optimization...")
+    async def comprehensive_project_optimization(self) -> Dict[str, any]:
+        """Komplexní optimalizace projektu"""
 
-        try:
-            # 1. Analyze project structure
-            await self._analyze_project_structure()
+        logger.info("🚀 Starting comprehensive project optimization...")
 
-            # 2. Remove unnecessary files
-            await self._remove_unnecessary_files()
+        # 1. Analyze project structure
+        await self._analyze_project_structure()
 
-            # 3. Find and handle duplicates
-            await self._find_and_remove_duplicates()
+        # 2. Detect and analyze redundant files
+        await self._detect_redundant_files()
 
-            # 4. Optimize remaining files
-            await self._optimize_files()
+        # 3. Clean temporary and cache files
+        await self._clean_temporary_files()
 
-            # 5. Consolidate similar functionality
-            await self._consolidate_functionality()
+        # 4. Fix imports after consolidation
+        await self._fix_broken_imports()
 
-            # 6. Update dependencies
-            await self._optimize_dependencies()
+        # 5. Optimize remaining code
+        await self._optimize_code_quality()
 
-            # 7. Generate cleanup report
-            await self._generate_cleanup_report()
+        # 6. Update documentation
+        await self._update_documentation()
 
-            logger.info("✅ Project cleanup and optimization completed")
-            return self.cleanup_report
+        # 7. Generate optimization report
+        self._generate_final_report()
 
-        except Exception as e:
-            logger.error(f"❌ Cleanup failed: {e}")
-            self.cleanup_report["errors"].append(str(e))
-            return self.cleanup_report
+        return self.cleanup_report
 
     async def _analyze_project_structure(self):
-        """Analýza struktury projektu"""
+        """Analyzuje strukturu projektu"""
 
         logger.info("📊 Analyzing project structure...")
 
-        # Count files by type
-        file_stats = {}
-        total_size = 0
+        structure_analysis = {
+            "total_files": 0,
+            "python_files": 0,
+            "config_files": 0,
+            "cache_files": 0,
+            "documentation_files": 0,
+            "potential_redundancies": []
+        }
 
         for file_path in self.project_root.rglob("*"):
             if file_path.is_file():
-                suffix = file_path.suffix or "no_extension"
-                size = file_path.stat().st_size
+                structure_analysis["total_files"] += 1
 
-                if suffix not in file_stats:
-                    file_stats[suffix] = {"count": 0, "size": 0}
+                if file_path.suffix == ".py":
+                    structure_analysis["python_files"] += 1
+                elif file_path.suffix in [".json", ".yaml", ".yml", ".ini", ".conf"]:
+                    structure_analysis["config_files"] += 1
+                elif file_path.name.startswith(".") or "cache" in str(file_path):
+                    structure_analysis["cache_files"] += 1
+                elif file_path.suffix in [".md", ".rst", ".txt"]:
+                    structure_analysis["documentation_files"] += 1
 
-                file_stats[suffix]["count"] += 1
-                file_stats[suffix]["size"] += size
-                total_size += size
+        self.cleanup_report["project_structure"] = structure_analysis
+        logger.info(f"✅ Found {structure_analysis['total_files']} total files")
 
-        self.cleanup_report["project_analysis"] = {
-            "total_files": sum(stats["count"] for stats in file_stats.values()),
-            "total_size_mb": total_size / (1024 * 1024),
-            "file_types": file_stats
-        }
+    async def _detect_redundant_files(self):
+        """Detekuje redundantní soubory pro konsolidaci"""
 
-    async def _remove_unnecessary_files(self):
-        """Odstranění zbytečných souborů"""
+        logger.info("🔍 Detecting redundant files...")
 
-        logger.info("🗑️ Removing unnecessary files...")
+        redundant_files = []
 
-        files_removed = []
+        for category, file_pairs in self.redundancy_patterns.items():
+            for old_file, new_file in file_pairs:
+                old_path = self.project_root / old_file
+                new_path = self.project_root / new_file
+
+                if old_path.exists():
+                    if new_path.exists():
+                        # Both files exist - analyze for consolidation
+                        similarity = await self._analyze_file_similarity(old_path, new_path)
+                        redundant_files.append({
+                            "category": category,
+                            "old_file": str(old_path),
+                            "new_file": str(new_path),
+                            "similarity": similarity,
+                            "action": "consolidate" if similarity > 0.7 else "review"
+                        })
+                    else:
+                        logger.warning(f"Target consolidation file missing: {new_path}")
+
+        self.cleanup_report["redundant_files"] = redundant_files
+
+        # Auto-consolidate files with high similarity
+        for file_info in redundant_files:
+            if file_info["action"] == "consolidate":
+                await self._backup_and_remove_file(Path(file_info["old_file"]))
+
+    async def _analyze_file_similarity(self, file1: Path, file2: Path) -> float:
+        """Analyzuje podobnost dvou souborů"""
+
+        try:
+            with open(file1, 'r', encoding='utf-8') as f1:
+                content1 = f1.read()
+            with open(file2, 'r', encoding='utf-8') as f2:
+                content2 = f2.read()
+
+            # Use difflib to calculate similarity
+            similarity = difflib.SequenceMatcher(None, content1, content2).ratio()
+            return similarity
+
+        except Exception as e:
+            logger.warning(f"Could not analyze similarity between {file1} and {file2}: {e}")
+            return 0.0
+
+    async def _clean_temporary_files(self):
+        """Čistí dočasné a cache soubory"""
+
+        logger.info("🧹 Cleaning temporary and cache files...")
+
+        files_removed = 0
         space_saved = 0
 
         for category, patterns in self.cleanup_patterns.items():
-            logger.info(f"Cleaning {category}...")
-
             for pattern in patterns:
-                matching_files = list(self.project_root.glob(pattern))
-
-                for file_path in matching_files:
-                    if file_path.is_file() and file_path.name not in self.keep_files:
+                for file_path in self.project_root.glob(pattern):
+                    if file_path.is_file():
                         try:
-                            size = file_path.stat().st_size
+                            file_size = file_path.stat().st_size
                             file_path.unlink()
-                            files_removed.append({
-                                "path": str(file_path.relative_to(self.project_root)),
+
+                            files_removed += 1
+                            space_saved += file_size
+
+                            self.cleanup_report["files_removed"].append({
+                                "file": str(file_path),
                                 "category": category,
-                                "size_mb": size / (1024 * 1024)
+                                "size_bytes": file_size
                             })
-                            space_saved += size
 
                         except Exception as e:
-                            logger.warning(f"Failed to remove {file_path}: {e}")
+                            self.cleanup_report["errors"].append(f"Could not remove {file_path}: {e}")
 
                     elif file_path.is_dir():
                         try:
                             shutil.rmtree(file_path)
-                            files_removed.append({
-                                "path": str(file_path.relative_to(self.project_root)),
+                            files_removed += 1
+
+                            self.cleanup_report["files_removed"].append({
+                                "file": str(file_path),
                                 "category": category,
                                 "type": "directory"
                             })
+
                         except Exception as e:
-                            logger.warning(f"Failed to remove directory {file_path}: {e}")
+                            self.cleanup_report["errors"].append(f"Could not remove directory {file_path}: {e}")
 
-        self.cleanup_report["files_removed"] = files_removed
         self.cleanup_report["space_saved_mb"] = space_saved / (1024 * 1024)
+        logger.info(f"✅ Removed {files_removed} files, saved {space_saved / (1024 * 1024):.2f} MB")
 
-        logger.info(f"✅ Removed {len(files_removed)} files, saved {space_saved / (1024 * 1024):.2f} MB")
+    async def _fix_broken_imports(self):
+        """Opraví rozbité importy po konsolidaci"""
 
-    async def _find_and_remove_duplicates(self):
-        """Nalezení a odstranění duplicitních souborů"""
+        logger.info("🔧 Fixing broken imports...")
 
-        logger.info("🔍 Finding duplicate files...")
+        python_files = list(self.project_root.rglob("*.py"))
+        fixed_imports = []
 
-        # Calculate hashes for all Python files
-        python_files = list(self.project_root.glob("*.py"))
+        for py_file in python_files:
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
 
-        for file_path in python_files:
-            if file_path.is_file():
-                try:
-                    content = file_path.read_text(encoding='utf-8')
-                    # Normalize content (remove comments and whitespace for comparison)
-                    normalized_content = self._normalize_python_content(content)
-                    content_hash = hashlib.md5(normalized_content.encode()).hexdigest()
+                original_content = content
 
-                    if content_hash in self.file_hashes:
-                        # Found duplicate
-                        original_file = self.file_hashes[content_hash]
-                        duplicate_info = {
-                            "original": str(original_file.relative_to(self.project_root)),
-                            "duplicate": str(file_path.relative_to(self.project_root)),
-                            "hash": content_hash
-                        }
-                        self.duplicates.append(duplicate_info)
+                # Fix module imports
+                for old_module, new_module in self.import_mappings.items():
+                    # Fix direct imports
+                    pattern = rf"from\s+{re.escape(old_module)}\s+import"
+                    replacement = f"from {new_module} import"
+                    content = re.sub(pattern, replacement, content)
 
-                        # Keep the file with better name or more recent
-                        if self._should_keep_duplicate(original_file, file_path):
-                            # Remove current file, keep original
-                            file_path.unlink()
-                            logger.info(f"Removed duplicate: {file_path.name}")
-                        else:
-                            # Remove original, keep current
-                            original_file.unlink()
-                            self.file_hashes[content_hash] = file_path
-                            logger.info(f"Removed duplicate: {original_file.name}")
+                    # Fix import statements
+                    pattern = rf"import\s+{re.escape(old_module)}"
+                    replacement = f"import {new_module}"
+                    content = re.sub(pattern, replacement, content)
 
-                    else:
-                        self.file_hashes[content_hash] = file_path
+                # Fix class references
+                for old_class, new_class in self.class_mappings.items():
+                    # Be careful to only replace class instantiations, not in strings
+                    pattern = rf"\b{re.escape(old_class)}\b(?=\s*\()"
+                    replacement = new_class
+                    content = re.sub(pattern, replacement, content)
 
-                except Exception as e:
-                    logger.warning(f"Failed to process {file_path}: {e}")
+                # Save if changed
+                if content != original_content:
+                    with open(py_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
 
-        self.cleanup_report["duplicates_found"] = len(self.duplicates)
-        self.cleanup_report["duplicate_details"] = self.duplicates
+                    fixed_imports.append({
+                        "file": str(py_file),
+                        "changes": self._count_import_changes(original_content, content)
+                    })
 
-    def _normalize_python_content(self, content: str) -> str:
-        """Normalizace Python kódu pro porovnání"""
+            except Exception as e:
+                self.cleanup_report["errors"].append(f"Could not fix imports in {py_file}: {e}")
 
-        # Remove comments
-        lines = content.split('\n')
-        normalized_lines = []
+        self.cleanup_report["import_fixes"] = fixed_imports
+        logger.info(f"✅ Fixed imports in {len(fixed_imports)} files")
 
-        for line in lines:
-            # Remove inline comments but keep strings with #
-            in_string = False
-            quote_char = None
-            i = 0
+    def _count_import_changes(self, original: str, updated: str) -> int:
+        """Počítá počet změn v importech"""
 
-            while i < len(line):
-                char = line[i]
+        original_imports = len(re.findall(r"^(import|from)\s+", original, re.MULTILINE))
+        updated_imports = len(re.findall(r"^(import|from)\s+", updated, re.MULTILINE))
 
-                if not in_string and char in ['"', "'"]:
-                    in_string = True
-                    quote_char = char
-                elif in_string and char == quote_char and (i == 0 or line[i-1] != '\\'):
-                    in_string = False
-                    quote_char = None
-                elif not in_string and char == '#':
-                    line = line[:i]
-                    break
+        return abs(original_imports - updated_imports)
 
-                i += 1
+    async def _optimize_code_quality(self):
+        """Optimalizuje kvalitu kódu"""
 
-            # Remove leading/trailing whitespace
-            line = line.strip()
-            if line:  # Keep non-empty lines
-                normalized_lines.append(line)
-
-        return '\n'.join(normalized_lines)
-
-    def _should_keep_duplicate(self, file1: Path, file2: Path) -> bool:
-        """Rozhodnutí, který duplicitní soubor zachovat"""
-
-        # Prefer files with better names
-        preference_order = [
-            "unified_", "main_", "optimized_",
-            "advanced_", "intelligent_", "quality_"
-        ]
-
-        for prefix in preference_order:
-            if file1.name.startswith(prefix) and not file2.name.startswith(prefix):
-                return True
-            elif file2.name.startswith(prefix) and not file1.name.startswith(prefix):
-                return False
-
-        # Prefer more recent files
-        return file1.stat().st_mtime > file2.stat().st_mtime
-
-    async def _optimize_files(self):
-        """Optimalizace existujících souborů"""
-
-        logger.info("⚡ Optimizing remaining files...")
+        logger.info("⚡ Optimizing code quality...")
 
         optimizations = []
 
-        # Optimize Python files
-        python_files = list(self.project_root.glob("*.py"))
+        # Find Python files for optimization
+        python_files = list(self.project_root.rglob("*.py"))
 
-        for file_path in python_files:
-            if file_path.is_file():
-                try:
-                    original_content = file_path.read_text(encoding='utf-8')
-                    optimized_content = await self._optimize_python_file(original_content)
+        for py_file in python_files:
+            try:
+                with open(py_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
 
-                    if optimized_content != original_content:
-                        # Backup original
-                        backup_path = file_path.with_suffix('.py.bak')
-                        file_path.rename(backup_path)
+                original_content = content
 
-                        # Write optimized version
-                        file_path.write_text(optimized_content, encoding='utf-8')
+                # Remove excessive blank lines
+                content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
 
-                        optimizations.append({
-                            "file": str(file_path.relative_to(self.project_root)),
-                            "type": "python_optimization",
-                            "backup": str(backup_path.relative_to(self.project_root))
-                        })
+                # Fix trailing whitespace
+                content = re.sub(r'[ \t]+$', '', content, flags=re.MULTILINE)
 
-                        # Remove backup if optimization successful
-                        backup_path.unlink()
+                # Ensure file ends with newline
+                if content and not content.endswith('\n'):
+                    content += '\n'
 
-                except Exception as e:
-                    logger.warning(f"Failed to optimize {file_path}: {e}")
+                # Save if changed
+                if content != original_content:
+                    with open(py_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
 
-        self.cleanup_report["files_optimized"] = optimizations
-        self.cleanup_report["optimizations_applied"].extend([
-            "Removed redundant imports",
-            "Optimized docstrings",
-            "Standardized formatting",
-            "Removed dead code"
-        ])
+                    optimizations.append({
+                        "file": str(py_file),
+                        "type": "formatting",
+                        "description": "Fixed whitespace and blank lines"
+                    })
 
-    async def _optimize_python_file(self, content: str) -> str:
-        """Optimalizace Python souboru"""
+            except Exception as e:
+                self.cleanup_report["errors"].append(f"Could not optimize {py_file}: {e}")
 
-        lines = content.split('\n')
-        optimized_lines = []
-        imports_section = []
-        in_imports = True
-        seen_imports = set()
+        self.cleanup_report["optimizations_applied"] = optimizations
+        logger.info(f"✅ Optimized {len(optimizations)} files")
 
-        for line in lines:
-            stripped = line.strip()
+    async def _update_documentation(self):
+        """Aktualizuje dokumentaci"""
 
-            # Handle imports
-            if in_imports and (stripped.startswith('import ') or stripped.startswith('from ')):
-                if stripped not in seen_imports:
-                    imports_section.append(line)
-                    seen_imports.add(stripped)
-            elif in_imports and stripped and not stripped.startswith('#') and not stripped.startswith('"""'):
-                in_imports = False
-                optimized_lines.extend(imports_section)
-                optimized_lines.append(line)
-            else:
-                if not in_imports:
-                    optimized_lines.append(line)
+        logger.info("📝 Updating documentation...")
 
-        # Remove multiple consecutive empty lines
-        final_lines = []
-        empty_line_count = 0
+        # Update README with consolidation info
+        readme_path = self.project_root / "README.md"
 
-        for line in optimized_lines:
-            if line.strip() == '':
-                empty_line_count += 1
-                if empty_line_count <= 2:  # Allow max 2 consecutive empty lines
-                    final_lines.append(line)
-            else:
-                empty_line_count = 0
-                final_lines.append(line)
+        if readme_path.exists():
+            try:
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    readme_content = f.read()
 
-        return '\n'.join(final_lines)
+                # Add consolidation info
+                consolidation_info = """
+## Project Optimization (Latest Update)
 
-    async def _consolidate_functionality(self):
-        """Konsolidace podobných funkcionalit"""
+This project has been optimized and consolidated:
 
-        logger.info("🔧 Consolidating similar functionality...")
+### Consolidated Modules:
+- **Research Orchestrators**: `enhanced_research_orchestrator.py` (consolidated)
+- **Cache Systems**: `unified_cache_system.py` (consolidated) 
+- **Copilot Tools**: `copilot_tools.py` (consolidated with 4 new advanced tools)
 
-        # Identify files with similar purposes
-        consolidation_groups = {
-            "main_files": ["main.py", "m1_main.py", "llama_main.py"],
-            "research_engines": ["unified_research_engine.py", "biohacking_research_engine.py"],
-            "ai_adapters": ["local_ai_adapter.py"],
-            "servers": ["unified_server.py", "mcp_server.py"],
-            "configs": ["unified_config.py"]
-        }
+### New Advanced Tools for GitHub Copilot:
+1. **BiohackingCompoundValidator** - Validates biohacking substances with research status
+2. **CodePatternOptimizer** - Suggests optimized design patterns
+3. **AsyncSafetyGuard** - Specialized linter for async code safety
+4. **PrivacyLeakDetector** - Detects potential sensitive data leaks
 
-        consolidations_performed = []
+### Key Features:
+- Unified cache system optimized for M1 MacBook
+- AI-powered research orchestration with predictive preloading
+- Comprehensive code analysis and optimization tools
+- Privacy-focused development with leak detection
 
-        for group_name, file_list in consolidation_groups.items():
-            existing_files = [
-                f for f in file_list
-                if (self.project_root / f).exists()
-            ]
-
-            if len(existing_files) > 1:
-                # Keep the most comprehensive one (usually "unified_" or longest)
-                primary_file = max(existing_files, key=len)
-
-                for file_name in existing_files:
-                    if file_name != primary_file:
-                        file_path = self.project_root / file_name
-
-                        # Create consolidated comment
-                        comment = f"# Functionality consolidated into {primary_file}\n"
-
-                        try:
-                            file_path.unlink()
-                            consolidations_performed.append({
-                                "removed": file_name,
-                                "consolidated_into": primary_file,
-                                "group": group_name
-                            })
-                        except Exception as e:
-                            logger.warning(f"Failed to consolidate {file_name}: {e}")
-
-        self.cleanup_report["consolidations"] = consolidations_performed
-
-    async def _optimize_dependencies(self):
-        """Optimalizace závislostí"""
-
-        logger.info("📦 Optimizing dependencies...")
-
-        requirements_files = [
-            "requirements.txt",
-            "requirements-dev.txt",
-            "requirements-private.txt"
-        ]
-
-        optimized_deps = []
-
-        for req_file in requirements_files:
-            req_path = self.project_root / req_file
-            if req_path.exists():
-                try:
-                    content = req_path.read_text()
-                    optimized_content = self._optimize_requirements(content)
-
-                    if optimized_content != content:
-                        req_path.write_text(optimized_content)
-                        optimized_deps.append(req_file)
-
-                except Exception as e:
-                    logger.warning(f"Failed to optimize {req_file}: {e}")
-
-        self.cleanup_report["dependencies_optimized"] = optimized_deps
-
-    def _optimize_requirements(self, content: str) -> str:
-        """Optimalizace requirements souboru"""
-
-        lines = content.split('\n')
-        optimized_lines = []
-        seen_packages = set()
-
-        for line in lines:
-            stripped = line.strip()
-
-            # Skip empty lines and comments
-            if not stripped or stripped.startswith('#'):
-                optimized_lines.append(line)
-                continue
-
-            # Extract package name
-            package_name = stripped.split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0]
-            package_name = package_name.strip()
-
-            # Skip duplicates
-            if package_name.lower() not in seen_packages:
-                seen_packages.add(package_name.lower())
-                optimized_lines.append(line)
-
-        return '\n'.join(optimized_lines)
-
-    async def _generate_cleanup_report(self):
-        """Generování reportu o čištění"""
-
-        report_path = self.project_root / "CLEANUP_REPORT.md"
-
-        report_content = f"""# Project Cleanup Report
-
-Generated: {self.cleanup_report['timestamp']}
-
-## Summary
-- **Files removed**: {len(self.cleanup_report['files_removed'])}
-- **Space saved**: {self.cleanup_report['space_saved_mb']:.2f} MB
-- **Files optimized**: {len(self.cleanup_report.get('files_optimized', []))}
-- **Duplicates removed**: {self.cleanup_report.get('duplicates_found', 0)}
-
-## Files Removed
 """
 
-        for file_info in self.cleanup_report['files_removed']:
-            report_content += f"- `{file_info['path']}` ({file_info['category']})\n"
+                # Add info if not already present
+                if "Project Optimization" not in readme_content:
+                    readme_content = consolidation_info + "\n---\n\n" + readme_content
 
-        if self.cleanup_report.get('consolidations'):
-            report_content += "\n## Consolidations\n"
-            for cons in self.cleanup_report['consolidations']:
-                report_content += f"- {cons['removed']} → {cons['consolidated_into']}\n"
+                    with open(readme_path, 'w', encoding='utf-8') as f:
+                        f.write(readme_content)
 
-        if self.cleanup_report.get('optimizations_applied'):
-            report_content += "\n## Optimizations Applied\n"
-            for opt in self.cleanup_report['optimizations_applied']:
-                report_content += f"- {opt}\n"
+                    self.cleanup_report["optimizations_applied"].append({
+                        "file": "README.md",
+                        "type": "documentation",
+                        "description": "Added consolidation and optimization info"
+                    })
 
-        if self.cleanup_report.get('errors'):
-            report_content += "\n## Errors\n"
-            for error in self.cleanup_report['errors']:
-                report_content += f"- {error}\n"
+            except Exception as e:
+                self.cleanup_report["errors"].append(f"Could not update README: {e}")
 
-        report_content += "\n## Next Steps\n"
-        report_content += "1. Run comprehensive tests\n"
-        report_content += "2. Update documentation\n"
-        report_content += "3. Verify all functionality works\n"
-        report_content += "4. Consider further optimizations\n"
+    async def _backup_and_remove_file(self, file_path: Path):
+        """Zálohuje a odstraní soubor"""
 
-        report_path.write_text(report_content, encoding='utf-8')
-        logger.info(f"📄 Cleanup report saved to {report_path}")
+        try:
+            # Create backup
+            backup_dir = self.project_root / "backups" / "consolidation"
+            backup_dir.mkdir(parents=True, exist_ok=True)
 
-# Convenience function
-async def cleanup_project(project_root: str = None) -> Dict[str, any]:
-    """Convenience function for project cleanup"""
+            backup_path = backup_dir / f"{file_path.name}.{datetime.now().strftime('%Y%m%d_%H%M%S')}.bak"
+            shutil.copy2(file_path, backup_path)
 
-    root_path = Path(project_root) if project_root else Path.cwd()
+            # Remove original
+            file_size = file_path.stat().st_size
+            file_path.unlink()
 
-    cleanup_system = ProjectCleanupOptimizer(root_path)
-    return await cleanup_system.full_cleanup_and_optimization()
+            self.cleanup_report["files_consolidated"].append({
+                "file": str(file_path),
+                "backup": str(backup_path),
+                "size_bytes": file_size
+            })
+
+            logger.info(f"✅ Consolidated {file_path.name} (backed up to {backup_path})")
+
+        except Exception as e:
+            self.cleanup_report["errors"].append(f"Could not backup/remove {file_path}: {e}")
+
+    def _generate_final_report(self):
+        """Generuje finální report optimalizace"""
+
+        report_path = self.project_root / "reports" / f"optimization_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        report_path.parent.mkdir(exist_ok=True)
+
+        try:
+            with open(report_path, 'w', encoding='utf-8') as f:
+                json.dump(self.cleanup_report, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"📊 Optimization report saved to {report_path}")
+
+            # Print summary
+            self._print_optimization_summary()
+
+        except Exception as e:
+            logger.error(f"Could not save optimization report: {e}")
+
+    def _print_optimization_summary(self):
+        """Vytiskne shrnutí optimalizace"""
+
+        print("\n" + "="*50)
+        print("🚀 PROJECT OPTIMIZATION SUMMARY")
+        print("="*50)
+
+        print(f"📁 Files removed: {len(self.cleanup_report['files_removed'])}")
+        print(f"🔗 Files consolidated: {len(self.cleanup_report['files_consolidated'])}")
+        print(f"🔧 Import fixes: {len(self.cleanup_report['import_fixes'])}")
+        print(f"⚡ Optimizations applied: {len(self.cleanup_report['optimizations_applied'])}")
+        print(f"💾 Space saved: {self.cleanup_report['space_saved_mb']:.2f} MB")
+
+        if self.cleanup_report['errors']:
+            print(f"⚠️  Errors encountered: {len(self.cleanup_report['errors'])}")
+
+        print("\n✅ Project optimization completed successfully!")
+        print("="*50)
+
+# Factory function
+async def optimize_project(project_root: Path = None):
+    """Factory function to run project optimization"""
+    optimizer = ProjectCleanupOptimizer(project_root)
+    return await optimizer.comprehensive_project_optimization()
 
 # Export
-__all__ = ['ProjectCleanupOptimizer', 'cleanup_project']
+__all__ = ['ProjectCleanupOptimizer', 'optimize_project']

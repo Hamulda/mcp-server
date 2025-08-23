@@ -1,0 +1,131 @@
+{
+  "summary": {
+    "duration": 0.04718303680419922,
+    "tests_run": 11,
+    "tests_passed": 11,
+    "tests_failed": 0,
+    "success_rate": 100.0,
+    "status": "PASSED"
+  },
+  "results": [
+    {
+      "name": "cache_logic",
+      "status": "passed",
+      "duration": 5.1975250244140625e-05,
+      "error": null,
+      "details": {
+        "operations": 12,
+        "hit_ratio": 0.5,
+        "cache_size": 11
+      }
+    },
+    {
+      "name": "connection_pool",
+      "status": "passed",
+      "duration": 9.799003601074219e-05,
+      "error": null,
+      "details": {
+        "connections": 5,
+        "success_rate": 1.0
+      }
+    },
+    {
+      "name": "consistent_hash",
+      "status": "passed",
+      "duration": 0.02875518798828125,
+      "error": null,
+      "details": {
+        "keys": 100,
+        "distribution": {
+          "node1": 24,
+          "node2": 34,
+          "node3": 42
+        },
+        "balanced": true
+      }
+    },
+    {
+      "name": "ml_classification",
+      "status": "passed",
+      "duration": 3.314018249511719e-05,
+      "error": null,
+      "details": {
+        "queries": 2,
+        "classifications": 2
+      }
+    },
+    {
+      "name": "rate_limiting",
+      "status": "passed",
+      "duration": 2.09808349609375e-05,
+      "error": null,
+      "details": {
+        "allowed": 10,
+        "total": 15
+      }
+    },
+    {
+      "name": "token_optimization",
+      "status": "passed",
+      "duration": 5.4836273193359375e-05,
+      "error": null,
+      "details": {
+        "compression_ratio": 0.883177570093458
+      }
+    },
+    {
+      "name": "semantic_search",
+      "status": "passed",
+      "duration": 1.7881393432617188e-05,
+      "error": null,
+      "details": {
+        "papers": 2,
+        "results": 1
+      }
+    },
+    {
+      "name": "workflow",
+      "status": "passed",
+      "duration": 8.821487426757812e-06,
+      "error": null,
+      "details": {
+        "project_created": true,
+        "paper_added": true
+      }
+    },
+    {
+      "name": "monitoring",
+      "status": "passed",
+      "duration": 1.4066696166992188e-05,
+      "error": null,
+      "details": {
+        "requests": 10,
+        "success_rate": 0.9,
+        "avg_time": 145.0
+      }
+    },
+    {
+      "name": "integration",
+      "status": "passed",
+      "duration": 0.010885953903198242,
+      "error": null,
+      "details": {
+        "requests": 2,
+        "cache_hit": true
+      }
+    },
+    {
+      "name": "performance",
+      "status": "passed",
+      "duration": 0.004271984100341797,
+      "error": null,
+      "details": {
+        "data_items": 1000,
+        "processing_time": 0.001668691635131836,
+        "concurrent_tasks": 50,
+        "concurrent_time": 0.002537965774536133
+      }
+    }
+  ],
+  "timestamp": "2025-08-23T02:42:01.797994"
+}
