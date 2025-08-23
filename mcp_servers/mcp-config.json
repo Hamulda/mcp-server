@@ -25,7 +25,31 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-token-here"
       },
       "note": "Requires Go to be installed and built first"
+    },
+    "duckduckgo-search": {
+      "command": "python",
+      "args": ["./mcp_servers/duckduckgo_mcp_server.py"],
+      "description": "DuckDuckGo search - zdarma, bez API klíče"
+    },
+    "filesystem": {
+      "command": "python",
+      "args": ["-m", "mcp_server_filesystem"],
+      "description": "Práce se soubory a složkami"
+    },
+    "sqlite": {
+      "command": "python",
+      "args": ["-m", "mcp_server_sqlite"],
+      "description": "SQLite databázové operace"
+    },
+    "time": {
+      "command": "python",
+      "args": ["-m", "mcp_server_time"],
+      "description": "Časové operace a scheduling"
+    },
+    "web-automation": {
+      "command": "python",
+      "args": ["./mcp_servers/web_automation_mcp_server.py"],
+      "description": "Web scraping a automatizace pomocí Playwright"
     }
   }
 }
-

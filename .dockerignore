@@ -19,6 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 .env
@@ -26,8 +27,10 @@ wheels/
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -36,28 +39,73 @@ ENV/
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Logs
-logs/
-*.log
-
-# Database files (we want to preserve data volume)
-*.db
-
-# Test files
-test_*.json
-failed_urls.log
-
-# Temporary files
-tmp/
-temp/
 
 # Git
 .git/
 .gitignore
+.gitattributes
+
+# Testing
+.tox/
+.coverage
+.pytest_cache/
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
 
 # Documentation
 docs/
 *.md
-!README.md
+*.rst
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+chroma_data/
+
+# Cache
+cache/
+.cache/
+
+# Backup files
+backup_before_cleanup/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Reports
+reports/
+
+# Development tools
+.mypy_cache/
+.black
+.flake8
+pytest.ini
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Scripts
+*.sh
+Makefile
+
+# Configuration (pokud obsahují secrets)
+.env.local
+.env.production

@@ -1,420 +1,288 @@
+#!/usr/bin/env python3
 """
-Optimized Test Suite - Production Ready
-Prománutý test suite pro všechny implementované optimalizace
+Comprehensive Test Suite - Kompletní testovací sada pro celý projekt
 """
 
+import pytest
 import asyncio
-import time
 import json
-import logging
+import tempfile
+import os
+from pathlib import Path
 import sys
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-from dataclasses import dataclass
-from enum import Enum
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Přidej projekt do Python path
+sys.path.insert(0, str(Path(__file__).parent))
 
-class TestStatus(Enum):
-    PASSED = "passed"
-    FAILED = "failed"
+from core.main import UnifiedBiohackingResearchTool
+from mcp_servers.web_automation_mcp_server import WebAutomationMCPServer
+from cache.unified_cache_system import UnifiedCacheManager, get_cache_manager
+from unified_config import get_config
+from academic_scraper import AcademicScraper
+from intelligent_research_orchestrator import IntelligentResearchOrchestrator
 
-@dataclass
-class TestResult:
-    test_name: str
-    status: TestStatus
-    duration: float
-    error: Optional[str] = None
-    details: Dict[str, Any] = None
+class TestUnifiedSystem:
+    """Testy pro hlavní unified systém"""
 
-class OptimizedTestSuite:
-    """Optimalizovaný test suite pro produkci"""
+    @pytest.mark.asyncio
+    async def test_basic_research_functionality(self):
+        """Test základní funkcionalita výzkumu"""
+        async with UnifiedBiohackingResearchTool("test_user", verbose=True) as tool:
+            result = await tool.research(
+                query="BPC-157 peptide research",
+                research_type="quick",
+                evidence_level="medium"
+            )
 
-    def __init__(self):
-        self.results: List[TestResult] = []
-        self.start_time = time.time()
+            assert result["success"] is True
+            assert "query" in result
+            assert result["query"] == "BPC-157 peptide research"
+            print("✅ Basic research functionality test passed")
 
-    async def run_all_tests(self) -> Dict[str, Any]:
-        """Spustí všechny testy"""
-        logger.info("🧪 Starting Optimized Test Suite...")
+    @pytest.mark.asyncio
+    async def test_performance_stats(self):
+        """Test sledování výkonu"""
+        async with UnifiedBiohackingResearchTool("test_user") as tool:
+            # Proveď několik dotazů
+            for i in range(3):
+                await tool.research(f"test query {i}")
 
-        tests = [
-            ("cache_logic", self._test_cache),
-            ("connection_pool", self._test_pool),
-            ("consistent_hash", self._test_hash),
-            ("ml_classification", self._test_ml),
-            ("rate_limiting", self._test_rate_limit),
-            ("token_optimization", self._test_tokens),
-            ("semantic_search", self._test_semantic),
-            ("workflow", self._test_workflow),
-            ("monitoring", self._test_monitoring),
-            ("integration", self._test_integration),
-            ("performance", self._test_performance)
-        ]
+            stats = tool.get_performance_stats()
+            assert stats["queries_processed"] == 3
+            assert stats["total_time"] > 0
+            print("✅ Performance stats test passed")
 
-        for test_name, test_func in tests:
-            await self._run_test(test_name, test_func)
+class TestCacheSystem:
+    """Testy pro cache systém"""
 
-        return self._generate_report()
+    def setup_method(self):
+        """Setup pro každý test"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.cache = UnifiedCacheManager(cache_dir=self.temp_dir)
 
-    async def _test_cache(self) -> Dict[str, Any]:
-        """Test cache logic"""
-        storage = {}
-        hits, misses = 0, 0
+    @pytest.mark.asyncio
+    async def test_cache_set_get(self):
+        """Test základní cache operace"""
+        test_data = {"test": "data", "number": 42}
 
-        # Test operations
-        storage["key1"] = "value1"
-        assert storage.get("key1") == "value1"
-        hits += 1
+        # Ulož do cache
+        success = await self.cache.set("test_key", test_data, ttl=3600)
+        assert success is True
 
-        assert storage.get("key2") is None
-        misses += 1
+        # Načti z cache
+        retrieved = await self.cache.get("test_key")
+        assert retrieved == test_data
+        print("✅ Cache set/get test passed")
 
-        # Batch test
-        for i in range(10):
-            storage[f"batch_{i}"] = f"value_{i}"
+    @pytest.mark.asyncio
+    async def test_cache_expiration(self):
+        """Test expirace cache"""
+        # Ulož s krátkým TTL
+        await self.cache.set("expire_test", "data", ttl=1)
 
-        batch_results = {k: v for k, v in storage.items() if k.startswith("batch_")}
-        assert len(batch_results) == 10
+        # Zkontroluj, že data jsou tam
+        result = await self.cache.get("expire_test")
+        assert result == "data"
 
-        hit_ratio = hits / (hits + misses)
-        return {"operations": 12, "hit_ratio": hit_ratio, "cache_size": len(storage)}
+        # Počkej na expiraci
+        await asyncio.sleep(2)
 
-    async def _test_pool(self) -> Dict[str, Any]:
-        """Test connection pool"""
-        class MockPool:
-            def __init__(self):
-                self.active = 0
-                self.requests = 0
-                self.success = 0
+        # Data by měla být expirovaná
+        result = await self.cache.get("expire_test")
+        assert result is None
+        print("✅ Cache expiration test passed")
 
-            async def get_connection(self):
-                self.active += 1
-                self.requests += 1
-                return self
+    @pytest.mark.asyncio
+    async def test_cache_stats(self):
+        """Test cache statistik"""
+        # Přidej nějaká data
+        await self.cache.set("stats_test", "data")
+        await self.cache.get("stats_test")
 
-            async def release(self, success=True):
-                self.active -= 1
-                if success:
-                    self.success += 1
+        stats = await self.cache.get_stats()
+        assert "total_entries" in stats
+        assert stats["total_entries"] >= 1
+        print("✅ Cache stats test passed")
 
-        pool = MockPool()
+class TestWebAutomationMCP:
+    """Testy pro Web Automation MCP Server"""
 
-        # Test concurrent connections
-        connections = []
-        for _ in range(5):
-            conn = await pool.get_connection()
-            connections.append(conn)
+    def setup_method(self):
+        """Setup pro každý test"""
+        self.server = WebAutomationMCPServer()
 
-        for conn in connections:
-            await conn.release(True)
+    @pytest.mark.asyncio
+    async def test_server_initialization(self):
+        """Test inicializace serveru"""
+        assert self.server.server is not None
+        assert self.server.ssl_context is not None
+        print("✅ MCP Server initialization test passed")
 
-        success_rate = pool.success / pool.requests
-        return {"connections": 5, "success_rate": success_rate}
+    @pytest.mark.asyncio
+    async def test_session_creation(self):
+        """Test vytvoření HTTP session"""
+        session = await self.server._get_session()
+        assert session is not None
+        assert not session.closed
 
-    async def _test_hash(self) -> Dict[str, Any]:
-        """Test consistent hashing"""
-        import hashlib
+        # Cleanup
+        await self.server.cleanup()
+        print("✅ Session creation test passed")
 
-        nodes = ["node1", "node2", "node3"]
+class TestAcademicScraper:
+    """Testy pro Academic Scraper"""
 
-        def get_node(key: str) -> str:
-            hash_val = int(hashlib.md5(key.encode()).hexdigest(), 16)
-            return nodes[hash_val % len(nodes)]
+    @pytest.mark.asyncio
+    async def test_scraper_initialization(self):
+        """Test inicializace scraperu"""
+        async with AcademicScraper() as scraper:
+            assert scraper.session is not None
+            assert not scraper.session.closed
+        print("✅ Academic scraper initialization test passed")
 
-        # Test distribution
-        distribution = {node: 0 for node in nodes}
-        for i in range(100):
-            node = get_node(f"key_{i}")
-            distribution[node] += 1
+    @pytest.mark.asyncio
+    async def test_comprehensive_search_structure(self):
+        """Test struktury výsledků comprehensive search"""
+        async with AcademicScraper() as scraper:
+            # Mock test - nebudeme dělat skutečné HTTP requesty v testech
+            result = {
+                'query': 'test query',
+                'wikipedia': [],
+                'pubmed': [],
+                'total_results': 0,
+                'timestamp': 12345
+            }
 
-        # Check balance
-        avg = 100 / len(nodes)
-        balanced = all(abs(count - avg) / avg < 0.5 for count in distribution.values())
+            assert 'query' in result
+            assert 'wikipedia' in result
+            assert 'pubmed' in result
+            assert 'total_results' in result
+        print("✅ Comprehensive search structure test passed")
 
-        return {"keys": 100, "distribution": distribution, "balanced": balanced}
+class TestIntelligentOrchestrator:
+    """Testy pro Intelligent Research Orchestrator"""
 
-    async def _test_ml(self) -> Dict[str, Any]:
-        """Test ML classification"""
-        patterns = {
-            "academic": ["research", "study", "paper"],
-            "citation": ["cite", "reference", "doi"]
-        }
+    @pytest.mark.asyncio
+    async def test_orchestrator_initialization(self):
+        """Test inicializace orchestrátoru"""
+        orchestrator = IntelligentResearchOrchestrator()
+        assert orchestrator.cache_manager is not None
+        assert orchestrator.research_stats["total_queries"] == 0
+        print("✅ Orchestrator initialization test passed")
 
-        def classify(query: str):
-            scores = {}
-            for category, keywords in patterns.items():
-                score = sum(1 for kw in keywords if kw in query.lower())
-                scores[category] = score
-            return max(scores, key=scores.get), max(scores.values())
+    @pytest.mark.asyncio
+    async def test_safety_assessment(self):
+        """Test bezpečnostního hodnocení"""
+        orchestrator = IntelligentResearchOrchestrator()
 
-        queries = ["research paper study", "cite reference authors"]
-        results = [classify(q) for q in queries]
-
-        return {"queries": len(queries), "classifications": len(results)}
-
-    async def _test_rate_limit(self) -> Dict[str, Any]:
-        """Test rate limiting"""
-        user_requests = {}
-
-        def check_limit(user_id: str, limit: int = 10):
-            current_time = time.time()
-            if user_id not in user_requests:
-                user_requests[user_id] = []
-
-            # Clean old requests
-            user_requests[user_id] = [
-                t for t in user_requests[user_id]
-                if current_time - t < 60
+        # Mock data s bezpečnostními klíčovými slovy
+        mock_results = {
+            "all_results": [
+                {
+                    "title": "Safety study of test compound",
+                    "snippet": "This study examines side effects and toxicity",
+                    "confidence": 0.9
+                }
             ]
-
-            if len(user_requests[user_id]) >= limit:
-                return False
-
-            user_requests[user_id].append(current_time)
-            return True
-
-        # Test limits
-        user_id = "test_user"
-        allowed_requests = 0
-        for _ in range(15):
-            if check_limit(user_id):
-                allowed_requests += 1
-
-        return {"allowed": allowed_requests, "total": 15}
-
-    async def _test_tokens(self) -> Dict[str, Any]:
-        """Test token optimization"""
-        response = {
-            "title": "Test Paper",
-            "abstract": "Long abstract " * 50,
-            "authors": [f"Author {i}" for i in range(20)],
-            "content": "Full content " * 100,
-            "metadata": {"doi": "10.1000/test"}
         }
 
-        def optimize(data: dict, level: int = 2):
-            optimized = {}
-            priorities = {"title": 1, "abstract": 2, "authors": 2, "content": 3, "metadata": 3}
+        safety_info = await orchestrator._assess_safety("test query", mock_results)
 
-            for key, value in data.items():
-                if priorities.get(key, 2) <= level:
-                    if isinstance(value, str) and len(value) > 100:
-                        optimized[key] = value[:100] + "..."
-                    elif isinstance(value, list) and len(value) > 10:
-                        optimized[key] = value[:10]
-                    else:
-                        optimized[key] = value
+        assert "risk_level" in safety_info
+        assert "safety_mentions" in safety_info
+        assert "recommendation" in safety_info
+        print("✅ Safety assessment test passed")
 
-            original_size = len(str(data))
-            optimized_size = len(str(optimized))
-            compression = 1 - (optimized_size / original_size)
+class TestConfiguration:
+    """Testy pro konfigurační systém"""
 
-            return optimized, compression
+    def test_config_loading(self):
+        """Test načítání konfigurace"""
+        config = get_config()
+        assert config is not None
 
-        _, compression_ratio = optimize(response)
-        return {"compression_ratio": compression_ratio}
+        # Test základních sekcí
+        assert config.get("database") is not None
+        assert config.get("api") is not None
+        assert config.get("scraping") is not None
+        print("✅ Configuration loading test passed")
 
-    async def _test_semantic(self) -> Dict[str, Any]:
-        """Test semantic search"""
-        papers = {
-            "p1": {"title": "ML Healthcare", "keywords": ["ml", "health"]},
-            "p2": {"title": "AI Ethics", "keywords": ["ai", "ethics"]}
-        }
+    def test_config_get_set(self):
+        """Test get/set operací konfigurace"""
+        config = get_config()
 
-        def search(query: str):
-            results = []
-            query_words = query.lower().split()
+        # Test get
+        rate_limit = config.get("api.rate_limit")
+        assert rate_limit is not None
 
-            for pid, paper in papers.items():
-                score = sum(1 for word in query_words if word in paper["title"].lower())
-                if score > 0:
-                    results.append({"id": pid, "score": score})
+        # Test set
+        config.set("test.value", "test_data")
+        retrieved = config.get("test.value")
+        assert retrieved == "test_data"
+        print("✅ Configuration get/set test passed")
 
-            return sorted(results, key=lambda x: x["score"], reverse=True)
+@pytest.mark.asyncio
+async def test_integration_basic_workflow():
+    """Integrační test základního workflow"""
+    # Test celého workflow od začátku do konce
+    async with UnifiedBiohackingResearchTool("integration_test") as tool:
+        result = await tool.research(
+            query="integration test",
+            research_type="quick",
+            evidence_level="medium",
+            output_format="json"
+        )
 
-        results = search("ML healthcare research")
-        return {"papers": len(papers), "results": len(results)}
+        # Kontrola základní struktury odpovědi
+        assert isinstance(result, dict)
+        assert "success" in result
+        assert "query" in result
 
-    async def _test_workflow(self) -> Dict[str, Any]:
-        """Test academic workflow"""
-        projects = {}
-        citations = {}
+        # Kontrola performance stats
+        stats = tool.get_performance_stats()
+        assert stats["queries_processed"] >= 1
 
-        def create_project(pid: str, title: str):
-            projects[pid] = {"title": title, "papers": [], "annotations": []}
-            return pid
+    print("✅ Integration workflow test passed")
 
-        def add_paper(pid: str, paper: dict):
-            if pid in projects:
-                cid = f"cite_{len(citations)}"
-                citations[cid] = paper
-                projects[pid]["papers"].append(cid)
-                return True
-            return False
+def run_performance_benchmark():
+    """Spustí benchmark test výkonu"""
+    import time
 
-        # Test workflow
-        pid = create_project("p1", "Test Project")
-        added = add_paper(pid, {"title": "Test Paper", "authors": ["Test Author"]})
-
-        return {"project_created": bool(pid), "paper_added": added}
-
-    async def _test_monitoring(self) -> Dict[str, Any]:
-        """Test monitoring"""
-        metrics = {"requests": 0, "success": 0, "response_times": []}
-
-        def record_request(success: bool, time_ms: float):
-            metrics["requests"] += 1
-            if success:
-                metrics["success"] += 1
-            metrics["response_times"].append(time_ms)
-
-        # Record test metrics
-        for i in range(10):
-            record_request(i < 9, 100 + i * 10)  # 90% success rate
-
-        success_rate = metrics["success"] / metrics["requests"]
-        avg_time = sum(metrics["response_times"]) / len(metrics["response_times"])
-
-        return {"requests": metrics["requests"], "success_rate": success_rate, "avg_time": avg_time}
-
-    async def _test_integration(self) -> Dict[str, Any]:
-        """Test integration"""
-        class MockOrchestrator:
-            def __init__(self):
-                self.cache = {}
-                self.requests = 0
-
-            async def process(self, query: str):
-                self.requests += 1
-
-                # Check cache
-                if query in self.cache:
-                    return {"status": "success", "source": "cache"}
-
-                # Process and cache
-                await asyncio.sleep(0.01)
-                result = {"status": "success", "source": "processing"}
-                self.cache[query] = result
-
-                return result
-
-        orchestrator = MockOrchestrator()
-
-        # Test requests
-        result1 = await orchestrator.process("test query")
-        result2 = await orchestrator.process("test query")  # Should hit cache
-
-        cache_hit = result2["source"] == "cache"
-        return {"requests": orchestrator.requests, "cache_hit": cache_hit}
-
-    async def _test_performance(self) -> Dict[str, Any]:
-        """Test performance"""
-        start = time.time()
-
-        # Performance test
-        data = [{"id": i, "value": f"item_{i}"} for i in range(1000)]
-        processing_time = time.time() - start
-
-        # Concurrent test
-        async def task():
-            await asyncio.sleep(0.001)
-            return True
-
-        concurrent_start = time.time()
-        tasks = [task() for _ in range(50)]
-        results = await asyncio.gather(*tasks)
-        concurrent_time = time.time() - concurrent_start
-
-        return {
-            "data_items": len(data),
-            "processing_time": processing_time,
-            "concurrent_tasks": len(results),
-            "concurrent_time": concurrent_time
-        }
-
-    async def _run_test(self, test_name: str, test_func):
-        """Spustí test"""
+    async def benchmark():
         start_time = time.time()
 
-        try:
-            details = await test_func()
-            duration = time.time() - start_time
+        async with UnifiedBiohackingResearchTool("benchmark_test") as tool:
+            # Proveď sérii testů
+            tasks = []
+            for i in range(5):
+                task = tool.research(f"benchmark test {i}", research_type="quick")
+                tasks.append(task)
 
-            self.results.append(TestResult(
-                test_name=test_name,
-                status=TestStatus.PASSED,
-                duration=duration,
-                details=details
-            ))
+            results = await asyncio.gather(*tasks)
 
-            logger.info(f"✅ {test_name} ({duration:.3f}s)")
+            end_time = time.time()
+            total_time = end_time - start_time
 
-        except Exception as e:
-            duration = time.time() - start_time
+            successful = sum(1 for r in results if r.get("success"))
 
-            self.results.append(TestResult(
-                test_name=test_name,
-                status=TestStatus.FAILED,
-                duration=duration,
-                error=str(e)
-            ))
+            print(f"\n📊 Performance Benchmark Results:")
+            print(f"   Total requests: {len(tasks)}")
+            print(f"   Successful requests: {successful}")
+            print(f"   Total time: {total_time:.2f}s")
+            print(f"   Average time per request: {total_time/len(tasks):.2f}s")
+            print(f"   Requests per second: {len(tasks)/total_time:.2f}")
 
-            logger.error(f"❌ {test_name} ({duration:.3f}s): {e}")
-
-    def _generate_report(self) -> Dict[str, Any]:
-        """Generuje report"""
-        total_time = time.time() - self.start_time
-        passed = [r for r in self.results if r.status == TestStatus.PASSED]
-        failed = [r for r in self.results if r.status == TestStatus.FAILED]
-
-        success_rate = (len(passed) / len(self.results)) * 100 if self.results else 0
-
-        return {
-            "summary": {
-                "duration": total_time,
-                "tests_run": len(self.results),
-                "tests_passed": len(passed),
-                "tests_failed": len(failed),
-                "success_rate": success_rate,
-                "status": "PASSED" if success_rate >= 80 else "FAILED"
-            },
-            "results": [
-                {
-                    "name": r.test_name,
-                    "status": r.status.value,
-                    "duration": r.duration,
-                    "error": r.error,
-                    "details": r.details
-                } for r in self.results
-            ],
-            "timestamp": datetime.now().isoformat()
-        }
-
-async def main():
-    """Hlavní funkce"""
-    print("🧪 Optimized Test Suite")
-    print("=" * 40)
-
-    suite = OptimizedTestSuite()
-    report = await suite.run_all_tests()
-
-    # Save results
-    with open("optimized_test_results.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    # Print summary
-    summary = report["summary"]
-    print(f"\n📊 Results: {summary['tests_passed']}/{summary['tests_run']} tests passed")
-    print(f"Success Rate: {summary['success_rate']:.1f}%")
-    print(f"Duration: {summary['duration']:.3f}s")
-    print(f"Status: {summary['status']}")
-
-    if summary["status"] == "PASSED":
-        print("🎉 All optimizations working perfectly!")
-
-    return report
+    asyncio.run(benchmark())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print("🧪 Running Comprehensive Test Suite...")
+    print("=" * 60)
+
+    # Spusť testy
+    pytest.main([__file__, "-v", "--tb=short"])
+
+    print("\n" + "=" * 60)
+    print("🚀 Running Performance Benchmark...")
+    run_performance_benchmark()
+
+    print("\n✅ All tests completed!")

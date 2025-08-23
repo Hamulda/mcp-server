@@ -1,321 +1,268 @@
-# 🔬 Academic Research Tool with MCP Integration
+# 🧬 Advanced Academic Research Tool with MCP Integration
 
-> **Production-ready academic content scraping and research platform with Model Context Protocol (MCP) support, optimized for M1 MacBook.**
+> **Production-ready akademický výzkumný nástroj s Model Context Protocol (MCP) podporou, optimalizovaný pro M1 MacBook a enterprise nasazení.**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![MCP](https://img.shields.io/badge/MCP-enabled-green.svg)](https://modelcontextprotocol.io/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## ✨ Features
+## ✨ Klíčové funkce
 
-### 🔍 **Academic Research**
-- **Multi-source scraping**: Wikipedia, PubMed, OpenAlex
-- **Intelligent rate limiting** with exponential backoff
-- **Circuit breaker pattern** for API protection
-- **Async/concurrent processing** for optimal performance
+### 🔬 **Pokročilý akademický výzkum**
+- **Multi-source scraping**: Wikipedia, PubMed, OpenAlex s inteligentním rate limitingem
+- **AI-powered analýza**: Automatické hodnocení kvality zdrojů a důkazů
+- **Safety assessment**: Inteligentní bezpečnostní hodnocení výzkumných témat
+- **Intelligent caching**: Pokročilý cache systém s kompresí a automatickou expirací
 
-### 🤖 **MCP Integration**
-- **Model Context Protocol** server for AI agents
-- **Tool-based architecture** for seamless AI integration
-- **RESTful API** with comprehensive endpoints
-- **Real-time research capabilities**
-- **5 Advanced MCP Servers**: Brave Search, Puppeteer, Git, Fetch, GitHub
+### 🤖 **Model Context Protocol (MCP) integrace**
+- **5 pokročilých MCP serverů**: Web automation, Brave Search, GitHub, Fetch, Puppeteer
+- **Tool-based architektura** pro seamless AI agent integraci
+- **RESTful API** s komprehenzivními endpointy
+- **Real-time výzkumné schopnosti**
 
-### 🔧 **M1 MacBook Optimized**
-- **Memory-efficient caching** with pressure detection
-- **Energy-optimized** retry logic and connection pooling
-- **Thread-safe implementations** across all components
-- **Minimal resource footprint**
+### ⚡ **M1 MacBook optimalizace**
+- **Memory-efficient caching** s detekci tlaku paměti
+- **Energy-optimized** retry logika a connection pooling
+- **Thread-safe implementace** napříč všemi komponenty
+- **Minimální resource footprint**
 
-### 📊 **Production Features**
-- **Docker containerization** with health checks
-- **Prometheus monitoring** and Grafana dashboards
-- **Comprehensive error handling** and logging
-- **Scalable unified architecture**
+### 🏭 **Production-ready funkce**
+- **Docker kontejnerizace** s health checks a multi-stage buildy
+- **Prometheus monitoring** a Grafana dashboardy
+- **Comprehensive error handling** a structured logging
+- **Scalable unified architektura**
 
-## 🚀 Quick Start
+## 🚀 Rychlý start
 
-### Prerequisites
+### Předpoklady
 - Python 3.11+
 - Docker & Docker Compose
 - Git
 
-### 1. Clone & Setup
+### 1. Instalace a setup
 ```bash
-git clone https://github.com/Hamulda/mcp-server.git
-cd mcp-server
+git clone https://github.com/Hamulda/advanced-academic-research-tool.git
+cd advanced-academic-research-tool
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Run with Docker (Recommended)
+### 2. Základní použití
 ```bash
-# Start all services (API + Monitoring)
+# Rychlý výzkumný dotaz
+python core/main.py --query "BPC-157 dosing protocol" --type comprehensive --verbose
+
+# Bezpečnostní hodnocení
+python core/main.py --query "Nootropics safety" --type safety --evidence high
+
+# JSON výstup pro API integraci
+python core/main.py --query "Peptide research" --format json
+```
+
+### 3. Docker deployment
+```bash
+# Development
 docker-compose up -d
 
-# Check status
-docker-compose ps
-
-# View logs
-docker-compose logs -f academic-research-api
+# Production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-### 3. Local Development
-```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
+## 📖 Pokročilé použití
 
-# Run locally
-python unified_server.py
+### Research módy
+- `quick` - Rychlé vyhledávání s cache prioritou
+- `balanced` - Vyvážený přístup rychlost/kvalita
+- `comprehensive` - Hloubkový výzkum všech zdrojů
+- `safety` - Zaměřeno na bezpečnostní aspekty
+- `dosage` - Specializace na dávkování a protokoly
+
+### Evidence levely
+- `high` - Pouze peer-reviewed a high-impact zdroje
+- `medium` - Včetně kvalitních sekundárních zdrojů
+- `all` - Všechny dostupné zdroje s hodnocením
+
+### Output formáty
+- `brief` - Stručné shrnutí s klíčovými body
+- `detailed` - Kompletní analýza s odkazy
+- `expert` - Technický formát pro odborníky
+- `json` - Strukturovaná data pro API
+
+## 🔧 Architektura
+
+```
+┌─────────────────┬──────────────────┬─────────────────┐
+│   Core Engine   │   MCP Servers    │   Monitoring    │
+├─────────────────┼──────────────────┼─────────────────┤
+│ • Main App      │ • Web Automation │ • Prometheus    │
+│ • Research Orch │ • Brave Search   │ • Grafana       │
+│ • Cache System  │ • GitHub Tools   │ • Health Checks │
+│ • Config Mgmt   │ • Fetch Tools    │ • Performance   │
+└─────────────────┴──────────────────┴─────────────────┘
 ```
 
-## 📡 API Endpoints
+### Klíčové komponenty
+- **UnifiedBiohackingResearchTool**: Hlavní orchestrátor
+- **IntelligentResearchOrchestrator**: AI-powered research engine
+- **UnifiedCacheManager**: Pokročilý cache systém
+- **WebAutomationMCPServer**: Web scraping a automatizace
+- **AcademicScraper**: Specializovaný scraper pro vědecké zdroje
 
-### Core Endpoints
-- **Health Check**: `GET /health`
-- **Scraping**: `POST /api/v1/scrape`
-- **Sources**: `GET /api/v1/sources`
-- **Metrics**: `GET /metrics` (Prometheus)
+## 📊 Performance optimalizace
 
-### MCP Server
-- **MCP Tools**: `/mcp/*` (for AI agents)
-
-### Monitoring
-- **API**: http://localhost:8080
-- **Grafana**: http://localhost:3001 (admin/admin)
-- **Prometheus**: http://localhost:9091
-
-## 📖 Usage Examples
-
-### Basic Research Query
-```bash
-curl -X POST http://localhost:8080/api/v1/scrape \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "peptides metabolism",
-    "sources": ["wikipedia", "pubmed"]
-  }'
-```
-
-### Python Integration
+### Cache systém
 ```python
-import aiohttp
-import asyncio
+# Automatické cache s TTL
+@cached(ttl=3600, key_prefix="research")
+async def research_function(query: str):
+    return await expensive_operation(query)
 
-async def research_peptides():
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            'http://localhost:8080/api/v1/scrape',
-            json={
-                'query': 'biohacking peptides',
-                'sources': ['wikipedia', 'pubmed', 'openalex']
-            }
-        ) as response:
-            return await response.json()
-
-# Run research
-results = asyncio.run(research_peptides())
+# Manuální cache operace
+cache = get_cache_manager()
+await cache.set("key", data, ttl=1800)
+result = await cache.get("key")
 ```
 
-### MCP Integration (for AI Agents)
-```json
-{
-  "mcpServers": {
-    "academic-research": {
-      "command": "http",
-      "args": ["http://localhost:8080/mcp"]
-    }
-  }
-}
-```
+### Rate limiting
+- Exponential backoff pro API calls
+- Per-domain rate limiting
+- Circuit breaker pattern pro API ochranu
+- Intelligent retry s jitter
 
-## 🏗️ Architecture
+## 🔐 Bezpečnost
 
-```
-┌──��──────────────┬─────────────────┬─────────────────┐
-│   FastAPI       │   MCP Server    │   Monitoring    │
-│   (Port 8080)   │   (/mcp)        │   (Grafana)     │
-└─────────────────┴─────────────────┴─────────────────┘
-┌─────────────────────────────────────────────────────┐
-│              Unified Orchestrator                   │
-├─────────────────┬─────────────────┬─────────────────┤
-│  Wikipedia      │    PubMed       │   OpenAlex      │
-│  Scraper        │    Scraper      │   Scraper       │
-└─────────────────┴─────────────────┴─────────────────┘
-┌─────────────────────────────────────────────────────┐
-│              Intelligent Cache System               │
-│         (Memory + SQLite + M1 Optimized)           │
-└─────────────────────────────────────────────────────┘
-```
+- **Input sanitization**: Ochrana proti injection útokům
+- **SSL/TLS**: Secure komunikace s external APIs
+- **Non-root Docker**: Bezpečnostní hardening kontejnerů
+- **Rate limiting**: Ochrana proti abuse
+- **Audit logging**: Kompletní audit trail
 
-## 🔧 Configuration
+## 📈 Monitoring a metriky
 
-### Environment Variables
+### Prometheus metriky
+- Request latency a throughput
+- Cache hit/miss ratios
+- Error rates po komponentách
+- Resource utilization
+
+### Grafana dashboardy
+- Real-time performance monitoring
+- System health overview
+- Research query analytics
+- Cache performance metrics
+
+Přístup na `http://localhost:3000` (admin/admin123)
+
+## 🧪 Testování
+
 ```bash
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-ENVIRONMENT=development
+# Spuštění všech testů
+python optimized_test_suite.py
 
-# Rate Limiting
-RATE_LIMIT_SCRAPE=30/minute
+# Performance benchmark
+python -c "from optimized_test_suite import run_performance_benchmark; run_performance_benchmark()"
 
-# Cache Settings
-CACHE_TTL=3600
-CACHE_MAX_SIZE=1000
+# Integration testy
+pytest tests/ -v
 
-# Enable/Disable Sources
-WIKIPEDIA_ENABLED=true
-PUBMED_ENABLED=true
-OPENALEX_ENABLED=true
+# Type checking
+mypy core/ mcp_servers/ cache/
 ```
-
-### Docker Configuration
-Edit `docker-compose.yml` for production deployment:
-- Resource limits
-- Environment variables
-- Volume mounts
-- Network settings
-
-## 📊 Monitoring & Metrics
-
-### Available Metrics
-- **Request counts** by source and endpoint
-- **Response times** and performance
-- **Cache hit/miss ratios**
-- **Error rates** and circuit breaker status
-- **System resources** (CPU, memory)
-
-### Grafana Dashboards
-Pre-configured dashboards for:
-- API performance monitoring
-- Scraper health and success rates
-- Cache efficiency metrics
-- System resource utilization
-
-## 🤖 MCP Servers
-
-### 📦 Installed MCP Servers
-Your project now includes 5 powerful MCP servers for AI agent integration:
-
-1. **🔍 Brave Search** - Web search, news, images, videos
-2. **🕷️ Puppeteer** - Web scraping and browser automation  
-3. **📦 Git** - Git repository operations and management
-4. **🌐 Fetch** - HTTP requests and API calls
-5. **🐙 GitHub** - GitHub API integration (requires Go)
-
-### Quick MCP Setup
-```bash
-# List all available MCP servers
-./mcp-servers.sh list
-
-# Build all servers
-./mcp-servers.sh build
-
-# Start a specific server
-./mcp-servers.sh start brave-search
-```
-
-See [MCP_SERVERS.md](MCP_SERVERS.md) for detailed setup and configuration.
 
 ## 🛠️ Development
 
-### Running Tests
+### Struktura projektu
+```
+├── core/                   # Hlavní aplikační logika
+├── mcp_servers/           # MCP server implementace
+├── cache/                 # Cache systémy
+├── monitoring/            # Monitoring konfigurace
+├── optimization/          # Performance optimalizace
+├── tests/                 # Test suites
+└── docker-compose.yml     # Orchestrace služeb
+```
+
+### Přidání nových funkcí
+1. Vytvořte feature branch
+2. Implementujte s testy
+3. Ověřte performance impact
+4. Aktualizujte dokumentaci
+5. Vytvořte pull request
+
+## 📝 API dokumentace
+
+### REST endpoints
 ```bash
-# Install test dependencies
-pip install -r requirements-dev.txt
+# Health check
+GET /health
 
-# Run all tests
-pytest
+# Research endpoint
+POST /research
+{
+  "query": "research topic",
+  "type": "comprehensive",
+  "evidence_level": "high"
+}
 
-# Run with coverage
-pytest --cov=. --cov-report=html
+# Cache statistics
+GET /cache/stats
+
+# Performance metrics
+GET /metrics
 ```
 
-### Code Quality
+### MCP Tools
+- `scrape_url`: Web scraping s CSS selektory
+- `extract_links`: Link extrakce s filtering
+- `browser_screenshot`: Screenshot capture
+- `get_page_info`: Detailní page analýza
+- `search_academic`: Akademické databáze search
+
+## 🚀 Production deployment
+
+### Docker Compose služby
+- **research-app**: Hlavní aplikace
+- **redis**: Cache a session storage
+- **prometheus**: Metrics collection
+- **grafana**: Visualization
+- **nginx**: Reverse proxy a load balancing
+
+### Environment variables
 ```bash
-# Format code
-black .
-
-# Lint code
-flake8 .
-
-# Type checking
-mypy .
+ENVIRONMENT=production
+REDIS_URL=redis://redis:6379
+DATABASE_URL=sqlite:///data/app.db
+PROMETHEUS_URL=http://prometheus:9090
 ```
 
-### Project Structure
-```
-├── unified_server.py          # Main FastAPI server
-├── academic_scraper.py        # Scraping orchestrator
-├── unified_config.py          # Configuration management
-├── unified_cache_system.py    # Intelligent caching
-├── mcp_handler.py            # MCP server implementation
-├── docker-compose.yml        # Docker services
-├── monitoring/               # Prometheus & Grafana
-├── tests/                    # Test suite
-└── docs/                     # Documentation
-```
+## 🤝 Přispívání
 
-## 🚀 Deployment
+1. Fork repository
+2. Vytvořte feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit změny (`git commit -m 'Add AmazingFeature'`)
+4. Push do branch (`git push origin feature/AmazingFeature`)
+5. Otevřete Pull Request
 
-### Production Checklist
-- [ ] Set environment variables
-- [ ] Configure resource limits in Docker
-- [ ] Enable SSL/TLS
-- [ ] Set up proper logging
-- [ ] Configure monitoring alerts
-- [ ] Test all endpoints
-- [ ] Verify MCP integration
+## 📄 Licence
 
-### Docker Production
-```bash
-# Production build
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+Distributed under the MIT License. See `LICENSE` for more information.
 
-# Scale services
-docker-compose up -d --scale academic-research-api=3
-```
+## 🙏 Poděkování
 
-## 📈 Performance
+- [Model Context Protocol](https://modelcontextprotocol.io/) za MCP framework
+- [FastAPI](https://fastapi.tiangolo.com/) za výkonný web framework
+- [Playwright](https://playwright.dev/) za browser automation
+- [Prometheus](https://prometheus.io/) a [Grafana](https://grafana.com/) za monitoring
 
-### Benchmarks (M1 MacBook Air)
-- **API Response Time**: ~400ms average
-- **Memory Usage**: <200MB base
-- **Concurrent Requests**: 50+ simultaneous
-- **Cache Hit Rate**: 85%+ typical
+## 📞 Kontakt
 
-### Optimization Features
-- **Circuit breakers** prevent cascade failures
-- **Exponential backoff** for rate limiting
-- **Connection pooling** reduces overhead
-- **Smart caching** with memory pressure detection
+Vojtěch Hamada - [@Hamulda](https://github.com/Hamulda)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/Hamulda/mcp-server/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Hamulda/mcp-server/discussions)
-
-## 🙏 Acknowledgments
-
-- **FastAPI** for the excellent web framework
-- **Model Context Protocol** for AI integration standards
-- **OpenAlex**, **PubMed**, **Wikipedia** for academic data access
+Project Link: [https://github.com/Hamulda/advanced-academic-research-tool](https://github.com/Hamulda/advanced-academic-research-tool)
 
 ---
 
-**Built with ❤️ for academic research and AI integration**
+**⚠️ Disclaimer**: Tento nástroj je určen pouze pro výzkumné účely. Vždy konzultujte s odborníky před implementací jakýchkoli doporučení.

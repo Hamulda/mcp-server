@@ -1,54 +1,62 @@
-# Multi-stage build pro optimalizaci velikosti
+# Multi-stage build pro optimální velikost a bezpečnost
 FROM python:3.11-slim as builder
 
 # Nastavení pracovního adresáře
 WORKDIR /app
 
-# Instalace systémových závislostí
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Kopírování requirements pro cache optimalizaci
+COPY requirements.txt .
 
-# Kopírování requirements souborů
-COPY requirements.txt ./
-
-# Instalace Python závislostí
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Instalace závislostí
+RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim
 
+# Vytvoření non-root uživatele pro bezpečnost
+RUN useradd --create-home --shell /bin/bash app
+
 # Nastavení pracovního adresáře
-WORKDIR /app
+WORKDIR /home/app
 
-# Kopírování nainstalovaných balíčků z builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Kopírování závislostí z builder stage
+COPY --from=builder /root/.local /home/app/.local
 
-# Instalace curl pro health check
+# Přidání local bin do PATH
+ENV PATH=/home/app/.local/bin:$PATH
+
+# Instalace system dependencies pro Playwright
 RUN apt-get update && apt-get install -y \
-    curl \
+    wget \
+    gnupg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Kopírování aplikačního kódu
-COPY . .
+# Kopírování zdrojového kódu
+COPY --chown=app:app . .
 
-# Vytvoření cache a data adresářů
-RUN mkdir -p cache/unified data
+# Playwright setup pro headless browser
+RUN python -m playwright install chromium
+RUN python -m playwright install-deps chromium
 
-# Nastavení environmentálních proměnných
-ENV PYTHONPATH=/app
-ENV ENVIRONMENT=production
+# Vytvoření potřebných adresářů
+RUN mkdir -p cache chroma_data data/cache logs \
+    && chown -R app:app cache chroma_data data logs
+
+# Přepnutí na non-root user
+USER app
+
+# Nastavení environment variables
+ENV PYTHONPATH=/home/app
 ENV PYTHONUNBUFFERED=1
-
-# Expose port
-EXPOSE 8001
+ENV ENVIRONMENT=production
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import asyncio; from core.main import UnifiedBiohackingResearchTool; print('OK')" || exit 1
 
-# Spustit unified server s uvicorn
-CMD ["uvicorn", "unified_server:app", "--host", "0.0.0.0", "--port", "8001"]
+# Expose port
+EXPOSE 8000
+
+# Default command
+CMD ["python", "core/main.py", "--query", "health-check", "--type", "quick"]
